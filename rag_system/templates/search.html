@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📱 Instagram CEO Content Search</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.4;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .search-container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+        }
+        
+        .search-button {
+            width: 100%;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .search-button:hover {
+            background: #5a67d8;
+        }
+        
+        .search-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .results-container {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .answer-section {
+            margin-bottom: 25px;
+        }
+        
+        .answer-text {
+            font-size: 16px;
+            line-height: 1.3;
+            color: #333;
+            padding: 10px;
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            border-radius: 5px;
+        }
+        
+        .answer-text ul, .answer-text ol {
+            margin: 5px 0;
+            padding-left: 20px;
+        }
+        
+        .answer-text li {
+            margin: 3px 0;
+            line-height: 1.3;
+        }
+        
+        .answer-text p {
+            margin: 8px 0;
+        }
+        
+        .meta-info {
+            display: flex;
+            gap: 20px;
+            margin: 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .instagram-links {
+            margin-top: 25px;
+        }
+        
+        .instagram-links h3 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        
+        .link-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 10px 0;
+            background: #fafafa;
+            border-radius: 8px;
+            border-left: 4px solid #e91e63;
+            transition: background 0.3s;
+        }
+        
+        .link-item:hover {
+            background: #f0f0f0;
+        }
+        
+        .instagram-link {
+            color: #e91e63;
+            text-decoration: none;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        .link-preview {
+            color: #666;
+            font-size: 14px;
+            flex: 1;
+        }
+        
+        .suggestions {
+            margin-top: 25px;
+        }
+        
+        .suggestions h3 {
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 5px;
+        }
+        
+        .suggestion-item {
+            display: inline-block;
+            margin: 5px;
+            padding: 8px 15px;
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .suggestion-item:hover {
+            background: #2196f3;
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #c62828;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+        
+        .stat-item {
+            padding: 8px 12px;
+            background: #e8f5e8;
+            border-radius: 5px;
+            color: #2e7d32;
+        }
+        
+        /* Source Attribution Highlighting Styles */
+        .cited-text {
+            transition: all 0.3s ease;
+            border-radius: 3px;
+            padding: 1px 2px;
+        }
+        
+        .cited-text.highlighted {
+            background-color: rgba(102, 126, 234, 0.2) !important;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+        }
+        
+        .clickable-text {
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        
+        .clickable-text:hover {
+            background-color: rgba(102, 126, 234, 0.1) !important;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+        
+        .clickable-text:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(102, 126, 234, 0.2);
+        }
+        
+        .citation-link {
+            transition: all 0.3s ease;
+        }
+        
+        .citation-link:hover {
+            transform: scale(1.2);
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📱 Instagram CEO Content Search</h1>
+        <p>Ask questions and get answers + Instagram reel links!</p>
+    </div>
+    
+    <div class="search-container">
+        <input 
+            type="text" 
+            id="searchBox" 
+            class="search-box" 
+            placeholder="Ask anything... (e.g., 'What is Claude Code?', 'Tips for fine-tuning?')"
+            onkeypress="handleKeyPress(event)"
+        >
+        <button id="searchButton" class="search-button" onclick="performSearch()">
+            🔍 Search CEO Content
+        </button>
+    </div>
+    
+    <div id="resultsContainer" class="results-container">
+        <div class="answer-section">
+            <div id="answer" class="answer-text"></div>
+            <div id="metaInfo" class="meta-info"></div>
+        </div>
+        
+        <div id="instagramLinks" class="instagram-links">
+            <h3>📱 Instagram Reels & Posts</h3>
+            <div id="linksList"></div>
+        </div>
+        
+        <div id="suggestions" class="suggestions">
+            <h3>💡 Try asking about...</h3>
+            <div id="suggestionsList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentTopic = null;
+        let conversationDepth = 0;
+        
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                performSearch();
+            }
+        }
+        
+        function performSearch() {
+            const query = document.getElementById('searchBox').value.trim();
+            if (!query) {
+                alert('Please enter a question!');
+                return;
+            }
+            
+            const button = document.getElementById('searchButton');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            // Show loading state
+            button.disabled = true;
+            button.textContent = '🔍 Searching...';
+            resultsContainer.style.display = 'block';
+            document.getElementById('answer').innerHTML = '<div class="loading">🤖 Thinking and searching through Instagram content...</div>';
+            
+            // Make search request
+            fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ query: query })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update conversation state
+                currentTopic = data.current_topic;
+                conversationDepth = data.conversation_depth;
+                
+                // Display answer
+                document.getElementById('answer').innerHTML = data.answer;
+                
+                // Initialize highlighting functionality
+                initializeHighlighting();
+                
+                // Display meta info
+                const metaInfo = document.getElementById('metaInfo');
+                metaInfo.innerHTML = `
+                    <div class="stats">
+                        <span class="stat-item">📊 Confidence: ${(data.confidence * 100).toFixed(0)}%</span>
+                        <span class="stat-item">📚 Answer Docs: ${data.documents_used_count}</span>
+                        <span class="stat-item">🔍 Related Docs: ${data.total_related_docs || 'N/A'}</span>
+                        <span class="stat-item">📱 Instagram Links: ${data.instagram_links_count || 0}</span>
+                        <span class="stat-item">🧠 Depth: ${data.conversation_depth}</span>
+                        <span class="stat-item">💬 Topic: ${data.current_topic || 'New'}</span>
+                    </div>
+                `;
+                
+                // Display Instagram links
+                const linksList = document.getElementById('linksList');
+                if (data.instagram_links && data.instagram_links.length > 0) {
+                    linksList.innerHTML = data.instagram_links.map(link => `
+                        <div class="link-item">
+                            <a href="${link.url}" target="_blank" class="instagram-link">
+                                📱 Instagram Reel
+                            </a>
+                            <span class="link-preview">${link.title}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    linksList.innerHTML = '<p>No Instagram links found for this query.</p>';
+                }
+                
+                // Display suggestions
+                const suggestionsList = document.getElementById('suggestionsList');
+                if (data.suggestions && data.suggestions.length > 0) {
+                    suggestionsList.innerHTML = data.suggestions.map(suggestion => `
+                        <span class="suggestion-item" onclick="searchSuggestion('${suggestion.replace(/'/g, "\\'")}')">${suggestion}</span>
+                    `).join('');
+                } else {
+                    suggestionsList.innerHTML = '<p>No suggestions available.</p>';
+                }
+            })
+            .catch(error => {
+                document.getElementById('answer').innerHTML = `
+                    <div class="error">
+                        ❌ Error: ${error.message}
+                    </div>
+                `;
+            })
+            .finally(() => {
+                // Reset button
+                button.disabled = false;
+                button.textContent = '🔍 Search CEO Content';
+                
+                // Clear search box
+                document.getElementById('searchBox').value = '';
+            });
+        }
+        
+        function searchSuggestion(suggestion) {
+            document.getElementById('searchBox').value = suggestion;
+            performSearch();
+        }
+        
+        // Initialize natural clickable content functionality
+        function initializeHighlighting() {
+            const citationLinks = document.querySelectorAll('.citation-link');
+            const clickableTexts = document.querySelectorAll('.clickable-text');
+            const naturalClickables = document.querySelectorAll('.natural-clickable');
+            
+            // Handle citation link hover highlighting (existing functionality)
+            citationLinks.forEach(link => {
+                const docId = link.getAttribute('data-doc-id');
+                const highlightColor = link.getAttribute('data-highlight-color');
+                
+                // On hover, highlight all text from this source
+                link.addEventListener('mouseenter', () => {
+                    const citedTexts = document.querySelectorAll(`[data-doc-id="${docId}"]`);
+                    citedTexts.forEach(text => {
+                        if (text.classList.contains('cited-text')) {
+                            text.classList.add('highlighted');
+                            // Use the unique color for each source
+                            text.style.backgroundColor = highlightColor + '40'; // Add transparency
+                        }
+                    });
+                });
+                
+                // Remove highlight when mouse leaves
+                link.addEventListener('mouseleave', () => {
+                    const citedTexts = document.querySelectorAll(`[data-doc-id="${docId}"]`);
+                    citedTexts.forEach(text => {
+                        if (text.classList.contains('cited-text')) {
+                            text.classList.remove('highlighted');
+                            text.style.backgroundColor = '';
+                        }
+                    });
+                });
+            });
+            
+            // Handle clickable text clicks (NEW FUNCTIONALITY)
+            clickableTexts.forEach(text => {
+                const url = text.getAttribute('data-url');
+                const docId = text.getAttribute('data-doc-id');
+                
+                if (url) {
+                    // Add click handler to open Instagram link
+                    text.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        
+                        // Visual feedback
+                        text.style.transform = 'scale(0.95)';
+                        setTimeout(() => {
+                            text.style.transform = '';
+                        }, 150);
+                        
+                        // Open Instagram link in new tab
+                        window.open(url, '_blank');
+                        
+                        console.log(`🎯 Clicked on text from source: ${docId} -> ${url}`);
+                    });
+                    
+                    // Enhanced hover effect for clickable text
+                    text.addEventListener('mouseenter', () => {
+                        // Highlight related text from same source
+                        const relatedTexts = document.querySelectorAll(`[data-doc-id="${docId}"]`);
+                        relatedTexts.forEach(relatedText => {
+                            if (relatedText.classList.contains('cited-text')) {
+                                relatedText.style.backgroundColor = text.getAttribute('data-highlight-color') + '30';
+                            }
+                        });
+                    });
+                    
+                    text.addEventListener('mouseleave', () => {
+                        // Remove highlight from related text
+                        const relatedTexts = document.querySelectorAll(`[data-doc-id="${docId}"]`);
+                        relatedTexts.forEach(relatedText => {
+                            if (relatedText.classList.contains('cited-text') && !relatedText.classList.contains('highlighted')) {
+                                relatedText.style.backgroundColor = '';
+                            }
+                        });
+                    });
+                }
+            });
+            
+            // Handle natural clickable content (NEW IMPROVED FUNCTIONALITY)
+            naturalClickables.forEach(clickableElement => {
+                const url = clickableElement.getAttribute('data-url');
+                
+                if (url) {
+                    // Add click handler for natural content
+                    clickableElement.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        
+                        // Clear click animation feedback
+                        clickableElement.style.transform = 'scale(0.95)';
+                        clickableElement.style.backgroundColor = 'rgba(102, 126, 234, 0.35)';
+                        clickableElement.style.borderColor = 'rgba(102, 126, 234, 0.8)';
+                        
+                        setTimeout(() => {
+                            clickableElement.style.transform = '';
+                            clickableElement.style.backgroundColor = 'rgba(102, 126, 234, 0.15)';
+                            clickableElement.style.borderColor = 'rgba(102, 126, 234, 0.3)';
+                        }, 150);
+                        
+                        // Open Instagram link
+                        window.open(url, '_blank');
+                        console.log(`🎯 Clicked natural content -> ${url}`);
+                    });
+                    
+                    // Enhanced hover effect for natural clickable content
+                    clickableElement.addEventListener('mouseenter', () => {
+                        clickableElement.style.backgroundColor = 'rgba(102, 126, 234, 0.25)';
+                        clickableElement.style.borderColor = 'rgba(102, 126, 234, 0.6)';
+                        clickableElement.style.transform = 'translateY(-1px) scale(1.02)';
+                        clickableElement.style.boxShadow = '0 3px 12px rgba(102, 126, 234, 0.25)';
+                        clickableElement.style.textDecorationColor = 'rgba(102, 126, 234, 1)';
+                    });
+                    
+                    clickableElement.addEventListener('mouseleave', () => {
+                        clickableElement.style.backgroundColor = 'rgba(102, 126, 234, 0.15)';
+                        clickableElement.style.borderColor = 'rgba(102, 126, 234, 0.3)';
+                        clickableElement.style.transform = '';
+                        clickableElement.style.boxShadow = '';
+                        clickableElement.style.textDecorationColor = 'rgba(102, 126, 234, 0.6)';
+                    });
+                }
+            });
+            
+            console.log(`✅ Initialized highlighting for ${citationLinks.length} citation links, ${clickableTexts.length} clickable text segments, and ${naturalClickables.length} natural clickable elements`);
+        }
+        
+        // Focus on search box when page loads
+        window.onload = function() {
+            document.getElementById('searchBox').focus();
+        };
+    </script>
+</body>
+</html>

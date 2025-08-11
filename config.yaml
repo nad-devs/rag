@@ -1,0 +1,66 @@
+selenium:
+  browser: chrome
+  headless: false
+  page_load_timeout: 30   # Reduced from 120
+  implicit_wait: 3        # Reduced from 10
+  window_size:
+    width: 1920
+    height: 1080
+  user_data_dir: "./browser_profiles/chrome_automation"  # Persistent login sessions
+
+anti_detection:
+  min_delay: 0.2
+  max_delay: 0.5
+  scroll_pause_time: 0.5
+  user_agent_rotation: true
+  random_viewport: false
+  
+# Profile scraping specific settings
+profile_scraping:
+  max_scroll_attempts: 20        # Maximum number of scroll attempts for reel discovery
+  scroll_delay_min: 1            # Minimum delay between scroll attempts (seconds)
+  scroll_delay_max: 2            # Maximum delay between scroll attempts (seconds)
+  no_new_content_threshold: 3    # Stop scrolling after this many attempts with no new content
+  reel_processing_delay_min: 0.1 # Minimum delay between processing individual reels
+  reel_processing_delay_max: 0.3 # Maximum delay between processing individual reels
+  fast_mode: true                # Enable faster processing with reduced delays
+
+instagram:
+  base_url: "https://www.instagram.com"
+  login_url: "https://www.instagram.com/accounts/login/"
+  credentials:
+    username: ""  # Will be loaded from .env file
+    password: ""  # Will be loaded from .env file
+    auto_login: true  # Set to true to auto-login with stored credentials
+  selectors:
+    username_input: "input[name='username']"
+    password_input: "input[name='password']"
+    login_button: "button[type='submit']"
+    video_element: "video"
+    video_source: "video source"
+    caption_container: "article div[data-testid='post-content'] span"
+    next_button: "button[aria-label='Next']"
+    close_button: "button[aria-label='Close']"
+    popup_close: "button[aria-label='Close']"
+    not_now_button: "button:contains('Not Now')"
+    turn_on_notifications: "button:contains('Turn On')"
+    login_wall: ".x9f619.x78zum5.x1q0g3np"
+    signup_prompt: "a[href='/accounts/emailsignup/']"
+    app_download: "a[href*='apps.apple.com'], a[href*='play.google.com']"
+    # Profile and reel specific selectors
+    reels_tab_link: "a[href*='/reels/']"
+    reel_links: "a[href*='/reel/']"
+    profile_reels_grid: "article"
+    reel_grid_items: "div._ac7v"
+  
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: null  # Disable file logging - only console output
+  max_file_size: 10485760  # 10MB
+  backup_count: 5
+
+output:
+  format: json
+  save_to_file: true
+  output_directory: "output"

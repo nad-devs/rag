@@ -1,0 +1,102 @@
+# LLM Configuration for Enhanced Metadata Extraction
+
+# Available providers and their configurations
+providers:
+  
+  # Local Models (Ollama)
+  ollama:
+    base_url: "http://localhost:11434"
+    models:
+      - name: "qwen2.5:32b-instruct-q4_k_m"
+        description: "Qwen 2.5 32B 4-bit - Excellent reasoning and source attribution"
+        recommended_for: "RAG synthesis, complex reasoning, source attribution"
+        memory_usage: "20GB RAM"
+        
+      - name: "llama3.1:8b"
+        description: "Meta's Llama 3.1 8B - Good balance of speed and accuracy"
+        recommended_for: "General metadata extraction"
+        memory_usage: "8GB RAM"
+        
+      - name: "llama3.1:70b"
+        description: "Meta's Llama 3.1 70B - Highest accuracy for complex analysis"
+        recommended_for: "Complex content analysis, nuanced extraction"
+        memory_usage: "40GB+ RAM"
+        
+      - name: "mistral:7b"
+        description: "Mistral 7B - Fast and efficient"
+        recommended_for: "Quick processing, basic extraction"
+        memory_usage: "6GB RAM"
+        
+      - name: "codellama:13b"
+        description: "Code Llama 13B - Good for technical content"
+        recommended_for: "Technical/programming content"
+        memory_usage: "12GB RAM"
+    
+    settings:
+      temperature: 0.1  # Low for consistent extraction
+      top_p: 0.9
+      max_tokens: 2000
+      timeout: 60
+  
+  # Cloud Models (OpenAI)
+  openai:
+    models:
+      - name: "gpt-4"
+        description: "OpenAI GPT-4 - Highest accuracy, more expensive"
+        recommended_for: "Complex analysis, maximum accuracy"
+        cost_per_1k_tokens: "$0.03"
+        
+      - name: "gpt-3.5-turbo"
+        description: "OpenAI GPT-3.5 Turbo - Good balance of cost and performance"
+        recommended_for: "General extraction, cost-effective"
+        cost_per_1k_tokens: "$0.0015"
+        
+    settings:
+      temperature: 0.1
+      max_tokens: 2000
+  
+  # Cloud Models (Anthropic)
+  anthropic:
+    models:
+      - name: "claude-3-opus-20240229"
+        description: "Claude 3 Opus - Excellent for nuanced analysis"
+        recommended_for: "Complex reasoning, detailed analysis"
+        cost_per_1k_tokens: "$0.015"
+        
+      - name: "claude-3-sonnet-20240229"
+        description: "Claude 3 Sonnet - Good balance of performance and cost"
+        recommended_for: "General extraction, balanced approach"
+        cost_per_1k_tokens: "$0.003"
+        
+    settings:
+      temperature: 0.1
+      max_tokens: 2000
+
+# Default configuration
+default:
+  provider: "ollama"
+  model: "mistral:7b"
+  fallback_provider: "ollama"
+  fallback_model: "qwen2.5:32b-instruct-q4_k_m"
+
+# Processing settings
+processing:
+  batch_size: 10  # Process N files at once
+  retry_attempts: 3
+  retry_delay: 5  # seconds
+  enable_caching: true
+  cache_duration: 86400  # 24 hours in seconds
+
+# Quality settings
+quality:
+  min_confidence_score: 0.7
+  require_entities: true
+  require_searchable_queries: true
+  max_generic_responses: 0.3  # Max 30% generic responses
+
+# Output settings
+output:
+  save_llm_responses: true
+  save_metadata_only: false
+  include_debug_info: false
+  format: "json"

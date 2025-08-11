@@ -1,0 +1,30 @@
+# Environment variables (contains API keys)
+.env
+
+# OpenAI processing results
+openai_extracted_*.json
+secure_openai_result.json
+openai_batch_results_*.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
