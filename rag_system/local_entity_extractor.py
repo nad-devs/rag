@@ -43,15 +43,25 @@ class LocalEntityExtractor:
         Returns:
             Dict with extraction result
         """
+        print(f"🔍 LOCAL EXTRACTOR INTERNAL DEBUG:")
+        print(f"   Query: '{query}'")
+        print(f"   Ollama available: {self.available}")
+        print(f"   Ollama URL: {self.ollama_base_url}")
         
         # Get Mistral result
         start_time = time.time()
         if self.available:
             try:
+                print(f"   Starting Mistral extraction...")
+                extraction_start = time.time()
                 entity = self._extract_with_mistral(query)
+                extraction_duration = time.time() - extraction_start
+                print(f"   Mistral extraction completed: {extraction_duration:.2f}s")
+                
                 process_time = (time.time() - start_time) * 1000
                 success = True
             except Exception as e:
+                print(f"   Mistral extraction failed: {e}")
                 entity = f"ERROR: {str(e)}"
                 process_time = (time.time() - start_time) * 1000
                 success = False
@@ -70,7 +80,8 @@ class LocalEntityExtractor:
     def _extract_with_mistral(self, query: str) -> str:
         """Extract entity using Mistral with focused, concise extraction"""
         
-        # Improved prompt for concise entity extraction  
+        # Time prompt construction
+        prompt_start = time.time()
         prompt = f"""[INST] Extract the main topic/entity from this user question: "{query}"
 
 Rules:
@@ -91,7 +102,11 @@ Examples:
 - "Best practices for Python coding?" → "python coding"
 
 Your response (topic only): [/INST]"""
+        print(f"   Prompt construction: {time.time() - prompt_start:.2f}s")
+        print(f"   Prompt length: {len(prompt)} chars")
         
+        # Time payload preparation
+        payload_start = time.time()
         payload = {
             "model": "mistral:7b-instruct",
             "prompt": prompt,
@@ -102,20 +117,39 @@ Your response (topic only): [/INST]"""
                 "stop": ["\n", ".", "?", "!"]
             }
         }
+        print(f"   Payload preparation: {time.time() - payload_start:.2f}s")
+        print(f"   Model: {payload['model']}")
+        print(f"   Stream: {payload['stream']}")
+        print(f"   Timeout: 90s")
         
+        # Time Ollama API call
+        api_start = time.time()
+        print(f"   Making POST request to: {self.ollama_base_url}/api/generate")
         response = requests.post(
             f"{self.ollama_base_url}/api/generate",
             json=payload,
-            timeout=30
+            timeout=90
         )
+        api_duration = time.time() - api_start
+        print(f"   Ollama API call: {api_duration:.2f}s")
+        print(f"   Response status: {response.status_code}")
+        
+        # Time response processing
+        process_start = time.time()
         response.raise_for_status()
         result = response.json()
+        print(f"   JSON parsing: {time.time() - process_start:.2f}s")
+        print(f"   Response keys: {list(result.keys())}")
         
+        # Time result extraction and cleaning
+        extract_start = time.time()
         entity = result.get("response", "").strip().lower()
         
         # Clean up quotes, extra whitespace, and backslashes
         entity = entity.strip('"\'').strip()
         entity = entity.replace('\\', '')  # Remove backslashes
+        print(f"   Result extraction/cleaning: {time.time() - extract_start:.2f}s")
+        print(f"   Final entity: '{entity}'")
         
         return entity
     

@@ -39,8 +39,6 @@ if not os.getenv('QDRANT_URL'):
     os.environ['QDRANT_URL'] = 'http://localhost:6333'
 from dataclasses import dataclass
 from enum import Enum
-import openai
-from openai import OpenAI
 import anthropic
 from dotenv import load_dotenv
 import qdrant_client
@@ -118,22 +116,17 @@ class ClaudeRAGEngine:
         # Anthropic setup (preferred) with OpenAI fallback  
         # Still needed for document ranking and entity extraction
         anthropic_key = os.getenv('ANTHROPIC_API_KEY')
-        openai_key = os.getenv('OPENAI_API_KEY')
         
         if anthropic_key:
             print(f"✅ Using Anthropic Claude API: sk-ant-...{anthropic_key[-10:]}")
             self.client = anthropic.Anthropic(api_key=anthropic_key)
             self.use_anthropic = True
-        elif openai_key:
-            print(f"⚠️ Falling back to OpenAI API: sk-...{openai_key[-10:]}")
-            self.client = OpenAI(api_key=openai_key)
-            self.use_anthropic = False
         else:
             if not use_local_synthesis:
-                print("❌ No API keys found!")
-                raise ValueError("Need either ANTHROPIC_API_KEY or OPENAI_API_KEY")
+                print("❌ No ANTHROPIC_API_KEY found!")
+                raise ValueError("ANTHROPIC_API_KEY is required")
             else:
-                print("⚠️ No API keys found - using local synthesis only")
+                print("⚠️ No ANTHROPIC_API_KEY found - using local synthesis only")
                 self.client = None
                 self.use_anthropic = False
         
@@ -377,8 +370,13 @@ class ClaudeRAGEngine:
         Returns:
             RAGExtractionResult with answer, confidence, and metadata
         """
+        import time
+        
+        total_start = time.time()
+        timings = {}
         
         # STEP 1: Check for follow-up context using Claude API + conversation tracker
+        step_start = time.time()
         query_embedding = None
         is_followup = False
         similarity = 0.0
@@ -440,17 +438,27 @@ class ClaudeRAGEngine:
                 else:
                     print(f"   No previous context")
         
-        # STEP 2: Extract key entity/topic from the user's question using GPT-4
-        # TODO: In future, use conversation context to enhance entity extraction
+        timings['follow_up_detection'] = time.time() - step_start
+        
+        # STEP 2: Get conversation context first
+        step_start = time.time()
+        conversation_context = self.conversation_tracker.get_context_for_response_generation()
+        
+        # Extract key entity/topic from the user's question using GPT-4
         if self.entity_detector:
-            entity = self.entity_detector.extract_entity_from_query(user_query)  # Use component
+            if is_followup:
+                entity = self.entity_detector.extract_entity_from_query(user_query, conversation_context)
+            else:
+                entity = self.entity_detector.extract_entity_from_query(user_query)
         else:
             entity = self._extract_entity_from_query(user_query)  # Fallback to monolithic
         
         print(f"🎯 Entity Detected: '{entity}'")
         
+        timings['entity_extraction'] = time.time() - step_start
+        
         # CONTEXT-AWARE SEARCH: Find relevant content using conversation context
-        conversation_context = self.conversation_tracker.get_context_for_response_generation()
+        step_start = time.time()
         used_document_ids = self.conversation_tracker.get_used_document_ids(recent_only=True, for_followup=is_followup)
         
         # Context-aware entity content search
@@ -522,6 +530,11 @@ class ClaudeRAGEngine:
             
             print(f"   🎯 Final ranked results: {len(entity_mentions)} documents")
         
+        timings['vector_search'] = time.time() - step_start
+        
+        # Claude ranking preparation step
+        step_start = time.time()
+        
         if not entity_mentions:
             return RAGExtractionResult(
                 primary_answer=f"I don't have information about '{entity}' in the CEO's content.",
@@ -533,7 +546,10 @@ class ClaudeRAGEngine:
                 extraction_reasoning=f"No content found mentioning '{entity}'"
             )
         
-        # Use context-aware GPT-4 extraction method
+        timings['claude_ranking'] = time.time() - step_start
+        
+        # Final synthesis step  
+        step_start = time.time()
         result = self._extract_with_context_aware_prompt(
             entity, 
             entity_mentions, 
@@ -541,6 +557,8 @@ class ClaudeRAGEngine:
             conversation_context, 
             is_followup
         )
+        
+        timings['final_synthesis'] = time.time() - step_start
         
         # STEP 5: Store query context for future follow-ups
         if result and result.confidence > 0.3 and query_embedding is not None:
@@ -596,6 +614,12 @@ class ClaudeRAGEngine:
         # Track conversation (simple increment for old method compatibility)
         if result and result.confidence > 0.3:
             self.conversation_depth += 1
+        
+        # Add total timing and print results
+        timings['total_time'] = time.time() - total_start
+        print(f"🔍 PERFORMANCE PROFILE:")
+        for step, duration in timings.items():
+            print(f"   {step}: {duration:.2f}s")
         
         return result
     
@@ -831,6 +855,15 @@ class ClaudeRAGEngine:
         
         print(f"📊 SEARCH RESULTS: {total_docs} documents | {len(combined_content):,} chars | Types: {len(vector_types_used)}")
         
+        # Citation flow debugging - Document selection
+        print(f"🔍 CITATION FLOW DEBUG:")
+        print(f"   Selected documents count: {len(doc_mentions)}")
+        for i, (doc_id, mentions_for_doc) in enumerate(list(doc_mentions.items())[:10]):  # Limit to first 10
+            title = "NO_TITLE"
+            if mentions_for_doc:
+                title = mentions_for_doc[0].get('main_lesson', mentions_for_doc[0].get('title', 'NO_TITLE'))[:50]
+            print(f"   Doc {i+1}: {doc_id} - {title}")
+        
         # Show document relevance summary instead of individual details
         if total_docs > 0:
             print(f"   📋 Top documents: {list(doc_mentions.keys())[:3]}")
@@ -872,6 +905,15 @@ class ClaudeRAGEngine:
             print(f"   Previous queries: {conversation_context.get('previous_queries', [])}")
             print(f"   Conversation topics: {conversation_context.get('mentioned_entities', [])}")
         
+        # Citation flow debugging - Before Claude synthesis
+        import re
+        doc_refs_in_prompt = re.findall(r'\[DOCUMENT ([^\]]+)\]', prompt)
+        edhonour_refs_in_prompt = re.findall(r'\[edhonour_[^\]]+\]', prompt)
+        print(f"🔍 DOCUMENTS SENT TO CLAUDE:")
+        print(f"   Document IDs in synthesis prompt: {doc_refs_in_prompt}")
+        print(f"   Prompt contains {len(edhonour_refs_in_prompt)} [edhonour_] references: {edhonour_refs_in_prompt[:5]}")  # Show first 5
+        print(f"   Prompt length: {len(prompt):,} characters")
+        
         # SYNTHESIS: Use local Qwen model if enabled, otherwise use API
         try:
             if self.use_local_synthesis and self.local_synthesizer:
@@ -885,6 +927,13 @@ class ClaudeRAGEngine:
                 )
                 
                 print(f"🤖 LOCAL SYNTHESIS: Generated response with confidence {synthesis_result['confidence']}")
+                
+                # Citation flow debugging - After local synthesis
+                local_answer = synthesis_result.get('answer', '')
+                edhonour_citations_in_local = re.findall(r'\[edhonour_[^\]]+\]', local_answer)
+                print(f"🔍 LOCAL SYNTHESIS CITATION OUTPUT:")
+                print(f"   Response contains {len(edhonour_citations_in_local)} [edhonour_] citations")
+                print(f"   Citations found: {edhonour_citations_in_local[:10]}")  # Show first 10
                 
                 # Create RAGExtractionResult directly from local synthesis
                 return RAGExtractionResult(
@@ -918,6 +967,14 @@ class ClaudeRAGEngine:
             
             print(f"🤖 LLM Response length: {len(raw_content)} characters")
             
+            # Citation flow debugging - After Claude response
+            edhonour_citations_in_response = re.findall(r'\[edhonour_[^\]]+\]', raw_content)
+            print(f"🔍 CLAUDE CITATION OUTPUT:")
+            print(f"   Response contains {len(edhonour_citations_in_response)} [edhonour_] citations")
+            print(f"   Citations found: {edhonour_citations_in_response[:10]}")  # Show first 10
+            if len(edhonour_citations_in_response) > 10:
+                print(f"   ... and {len(edhonour_citations_in_response) - 10} more citations")
+            
             # Try to parse JSON response with robust cleaning
             try:
                 # Claude returns valid JSON - just parse it directly
@@ -929,6 +986,13 @@ class ClaudeRAGEngine:
                 response_type = result.get('response_type', 'context_aware')
                 reasoning = result.get('reasoning', 'Context-aware extraction')
                 follow_up_questions = result.get('follow_up_questions', [])
+                
+                # Citation generation debug
+                print(f"🔍 CITATION GENERATION DEBUG:")
+                print(f"   Raw Claude response: {raw_content[:500]}...")
+                print(f"   Contains [edhonour_ references: {raw_content.count('[edhonour_')}")
+                print(f"   Extracted answer: {answer[:500]}...")
+                print(f"   Answer contains [edhonour_ references: {answer.count('[edhonour_')}")
                 
                 print(f"✅ Successfully parsed context-aware JSON response")
                 print(f"   Response type: {response_type}")
@@ -1004,139 +1068,103 @@ class ClaudeRAGEngine:
     ) -> str:
         """Build context-aware prompt that incorporates conversation history"""
         
-        # Base prompt structure
-        base_prompt = f"""You are Ed's AI knowledge assistant."""
+        # Enhanced prompt with improved structure and quality guidelines
         
-        # Add conversation context if available
+        # Build conversation context if available
+        context_part = ""
         if conversation_context.get('has_context', False) and is_followup:
             previous_queries = conversation_context.get('previous_queries', [])
             mentioned_entities = conversation_context.get('mentioned_entities', [])
-            
-            context_section = f"""
+            context_part = f"""
 CONVERSATION CONTEXT:
-- This is a follow-up question in an ongoing conversation
-- Previous questions discussed: {', '.join(previous_queries[-2:]) if previous_queries else 'None'}
-- Topics already covered: {', '.join(mentioned_entities[:5]) if mentioned_entities else 'None'}
+- This is a follow-up question building on previous discussion
+- Previous topics: {', '.join(mentioned_entities[:3]) if mentioned_entities else 'None'}
+- If user uses pronouns ("it", "that", "them"), they likely refer to: {', '.join(mentioned_entities[:3]) if mentioned_entities else entity}
+"""
 
-CURRENT QUESTION: "{query}"
-NOTE: If the user uses pronouns like "it", "that", "them", "this", they likely refer to: {', '.join(mentioned_entities[:3]) if mentioned_entities else entity}
-"""
-        else:
-            context_section = f"""
-NEW CONVERSATION:
-The user asked: "{query}"
-"""
+        # Create comprehensive documents text including structured knowledge
+        structured_additions = []
+        if all_key_takeaways:
+            structured_additions.append(f"Key Takeaways: {'; '.join(all_key_takeaways[:5])}")
+        if all_actionable_insights:
+            structured_additions.append(f"Actionable Insights: {'; '.join(all_actionable_insights[:5])}")
+        if all_specific_examples:
+            structured_additions.append(f"Examples: {'; '.join(all_specific_examples[:3])}")
+        if all_practical_applications:
+            structured_additions.append(f"Applications: {'; '.join(all_practical_applications[:3])}")
+        if all_technologies:
+            structured_additions.append(f"Technologies: {'; '.join(all_technologies[:5])}")
+        if all_tools:
+            structured_additions.append(f"Tools: {'; '.join(all_tools[:5])}")
         
-        # Main content section
-        content_section = f"""
-AVAILABLE CONTENT ABOUT {entity.upper()}:
-{combined_content}
+        documents_text = combined_content
+        if structured_additions:
+            documents_text += f"\n\nSTRUCTURED INSIGHTS:\n{chr(10).join(structured_additions)}"
 
-STRUCTURED KNOWLEDGE AVAILABLE:
-• Key Takeaways: {all_key_takeaways}
-• Actionable Insights: {all_actionable_insights}
-• Specific Examples: {all_specific_examples}
-• Practical Applications: {all_practical_applications}
-• Technologies Mentioned: {all_technologies}
-• Tools & Platforms: {all_tools}
-"""
-        
-        # Context-aware instructions
-        if is_followup and conversation_context.get('has_context', False):
-            instructions = """
-INSTRUCTIONS FOR FOLLOW-UP RESPONSE:
-1. REFERENCE PREVIOUS CONTEXT when relevant:
-   - Acknowledge what was previously discussed if building on it
-   - Use phrases like "Building on what we discussed about...", "As mentioned earlier...", "Expanding on..."
-   - Resolve any pronouns using the conversation context above
+        # Enhanced prompt for Claude synthesis
+        full_prompt = f"""Based on the provided content about Ed's insights, generate a comprehensive response following these guidelines:
 
-2. PROVIDE PROGRESSIVE DEPTH:
-   - Since this is a follow-up, focus on NEW information or deeper insights
-   - Avoid repeating basic information already covered
-   - Dive into implementation details, advanced tips, or specific examples
+CONTENT STRUCTURE:
+- Open with a clear, direct answer to the user's question
+- Organize information in logical sections with clear flow
+- Use bullet points for multiple related concepts
+- Provide specific examples and concrete details from Ed's content
+- Group related information together rather than scattering it
 
-3. ANALYZE THE FOLLOW-UP INTENT:
-   - Are they asking for clarification on something mentioned?
-   - Do they want to go deeper into a specific aspect?
-   - Are they asking "how to" implement something discussed?
-   - Do they want examples or practical steps?
+WRITING QUALITY:
+- Write conversationally but professionally 
+- Avoid repetitive phrasing between sections
+- Make each point distinct and valuable
+- Connect related concepts to show relationships
+- Explain WHY Ed recommends something, not just WHAT
 
-4. MAINTAIN CONVERSATION CONTINUITY:
-   - Reference previous discussion points when relevant
-   - Build logical progression from earlier topics
-   - Use connector phrases to link to previous context
-"""
-        else:
-            instructions = """
-INSTRUCTIONS FOR NEW TOPIC RESPONSE:
-1. ANALYZE THE USER'S QUESTION to understand what they actually need:
-   - Are they asking for a quick definition or comprehensive guide?
-   - Do they want practical tips and advice?
-   - Are they looking for Ed's specific opinions and thoughts?
-   - Do they need implementation steps or examples?
-   - Are they asking for comparisons or recommendations?
+DEPTH & INSIGHT:
+- Include both conceptual understanding and practical implementation
+- Highlight Ed's unique perspectives and reasoning
+- Address potential follow-up questions proactively
+- Provide context for recommendations
 
-2. RESPOND APPROPRIATELY based on your analysis:
-   - For simple questions: Provide concise, clear answers (200-400 words)
-   - For "what is the model/name/specification" questions: Look for direct statements where Ed identifies items
-   - For very specific technical queries: If Ed doesn't discuss the topic, clearly state "Ed doesn't discuss [topic] in his content"
-   - For comprehensive queries: Create detailed guides with sections and bullet points (800-1200 words)
-   - For tips/advice requests: Structure as actionable bullet points with explanations
-   - For "what does Ed think" queries: Focus on opinions, preferences, and personal insights
-   - For how-to questions: Provide step-by-step guidance with examples
-"""
-        
-        # Common instructions for both types
-        common_instructions = """
-3. EXTRACT DIRECT FACTS AND DETAILS:
-   - When Ed explicitly states facts, names, models, or specifications, recognize these as direct answers
-   - Look for phrases like "This is a [model name]", "It has [specification]", "The [item] is [detail]"
-   - Don't dismiss explicit statements as unclear - if Ed says "This is a leaper Kim links", that IS the model name
-   - Pay special attention to technical specifications, model names, speeds, prices, and direct comparisons
-   - If the retrieved content doesn't actually relate to the specific query, say "Ed doesn't discuss [specific topic] in his content"
-   - DO NOT generate generic definitions or information not found in Ed's actual posts
+CITATION INTEGRATION:
+- Place citations [edhonour_ID] at the END of each sentence that uses that source
+- Do NOT put citations on section headers or titles
+- Each sentence should have its own citation if it comes from a specific source
+- Don't over-cite - one citation per sentence is sufficient
 
-4. CREATE COHESIVE NARRATIVE RESPONSES WITH MANDATORY SOURCE ATTRIBUTION:
-   - Weave together information from multiple sources into flowing, complete answers
-   - ❗ ABSOLUTE REQUIREMENT: Every single sentence containing factual information MUST end with [edhonour_DOCID]
-   - ❗ NO EXCEPTIONS: If you cannot cite a source, do not include that information
-   - Format: "Ed recommends Proxmox Server [edhonour_DLWBp_ctC7l]. It provides PCI pass-through [edhonour_DLWBp_ctC7l]. The web interface is user-friendly [edhonour_DLWBp_ctC7l]."
-   - Each technical detail, specification, recommendation, and opinion MUST have its specific source cited
-   - Don't just list facts - create connections and provide context for why things matter
-   - Include specific examples, tools, technologies, and numbers that Ed mentioned with their sources
-   - Build comprehensive responses that demonstrate the depth of available knowledge
-   - Use Ed's exact quotes and phrasing to maintain authenticity with mandatory source tracking
+CITATION PLACEMENT RULES:
+- Citations go at the END of sentences, before the period [edhonour_ID].
+- For bullet points, put the citation at the end of each bullet point [edhonour_ID]
+- NEVER put citations on headers or section titles
+- If multiple sources support one sentence, list them together [edhonour_ID1, edhonour_ID2]
 
-4. MAINTAIN ED'S VOICE AND STYLE:
-   - Keep his direct, practical communication style
-   - Include his specific terminology and phrases
-   - Reflect his expertise and experience level
+Example:
+❌ WRONG (citation on header):
+1. Master Essential AI Skills [edhonour_ABC123]
+- Learn prompt engineering fundamentals
+- Practice with real examples
 
-5. FORMAT FOR COMPREHENSIVE RESPONSES WITH SENTENCE-LEVEL CITATION TRACKING:
-   - Create detailed, narrative-style answers that demonstrate the wealth of knowledge available
-   - Use specific examples, model names, speeds, specifications when provided in the content
-   - Structure responses with clear sections and bullet points for complex topics:
-     • **Main advantages/benefits** - Each advantage must end with [edhonour_DOCID]
-     • **Specific use cases** - Each use case must end with [edhonour_DOCID]
-     • **Technical details** - Each specification must end with [edhonour_DOCID]
-     • **Ed's recommendations** - Each recommendation must end with [edhonour_DOCID]
-   - ❗ CITATION VERIFICATION: Before finishing your response, check that EVERY factual sentence has [edhonour_DOCID]
-   - When technical details are available (speeds, models, specs), feature them prominently with individual sources
-   - Make responses rich and informative with sentence-level traceability to Ed's actual content
-   - If a sentence lacks a citation, either add one or remove the sentence entirely
+✅ CORRECT (citation on sentences):
+1. Master Essential AI Skills
+- Learn prompt engineering fundamentals through structured exercises [edhonour_ABC123].
+- Practice with real examples from production systems [edhonour_XYZ789].
+
+- Every factual statement needs its source citation at the sentence end
+- Headers should NOT have citations - only the content sentences
+- This enables proper source tracking for each piece of information
+{context_part}
+User's question: {query}
+
+Relevant content: {documents_text}
 
 Return your response as valid JSON:
-{
-    "answer": "Your comprehensive response here (only escape double quotes with \\" if needed - single quotes are fine as-is)",
+{{
+    "answer": "Your comprehensive response here (escape double quotes with \\" if needed)",
     "response_type": "definition|tips|comprehensive|opinion|comparison|implementation|followup",
     "confidence": 0.0-1.0,
     "reasoning": "Brief explanation of how you interpreted the query and chose your approach",
     "follow_up_questions": ["suggested follow-up 1", "suggested follow-up 2"]
-}
-"""
-        
-        # Combine all sections
-        full_prompt = base_prompt + context_section + content_section + instructions + common_instructions
+}}
+
+Generate a focused, comprehensive response that maximizes value for the user."""
         
         return full_prompt
     

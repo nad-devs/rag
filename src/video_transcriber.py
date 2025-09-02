@@ -311,6 +311,7 @@ class VideoTranscriber:
             # Fallback: manual format analysis
             cmd = [
                 "yt-dlp",
+                "--cookies-from-browser", "chrome:./browser_profiles/chrome_automation",
                 "--dump-json",
                 "--quiet",
                 instagram_url
@@ -412,6 +413,7 @@ class VideoTranscriber:
             # Use yt-dlp's format selection to get best video+audio format
             cmd = [
                 "yt-dlp",
+                "--cookies-from-browser", "chrome:./browser_profiles/chrome_automation",
                 "--get-url",
                 "--format", "best[height<=1080][ext=mp4]/best[ext=mp4]/best",
                 "--quiet",

@@ -44,7 +44,7 @@ class LocalMistralSynthesizer:
                     "prompt": "Test connection",
                     "stream": False
                 },
-                timeout=30
+                timeout=60
             )
             if response.status_code == 200:
                 print(f"✅ Connected to local model: {self.model_name}")
@@ -59,7 +59,7 @@ class LocalMistralSynthesizer:
         prompt: str, 
         temperature: float = 0.1, 
         max_tokens: int = 2500,
-        timeout: float = 30.0
+        timeout: float = 90.0
     ) -> str:
         """
         Generate response using local Mistral model

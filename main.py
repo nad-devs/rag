@@ -377,7 +377,11 @@ def update_config_from_args(config: Config, args: argparse.Namespace) -> None:
     elif getattr(args, 'use_firefox', False):  # Handle --use-firefox flag
         config.selenium.browser = 'firefox'
     
-    # Interactive login requires non-headless mode
+    # Set headless mode FIRST if requested (can be overridden by interactive login)
+    if args.headless:
+        config.selenium.headless = True
+    
+    # Interactive login requires non-headless mode (overrides headless flag)
     if hasattr(args, 'interactive_login') and args.interactive_login:
         config.selenium.headless = False
         print("🖥️  Interactive login mode: Browser will open in non-headless mode")
@@ -392,9 +396,6 @@ def update_config_from_args(config: Config, args: argparse.Namespace) -> None:
     elif hasattr(args, 'browser_handoff') and args.browser_handoff:
         config.selenium.headless = True  # Can use headless since no browser interaction needed
         print("🔗 Browser handoff mode: You'll login in your default browser")
-        
-    elif args.headless:
-        config.selenium.headless = True
     
     if args.verbose:
         config.logging.level = "DEBUG"
@@ -467,7 +468,7 @@ def main() -> int:
             force_firefox = getattr(args, 'use_firefox', False)
             force_cpu = getattr(args, 'force_cpu', False)
             scraper = InstagramScraper(
-                args.config, 
+                config,  # Pass the modified config object, not args.config
                 force_firefox=force_firefox,
                 debug_mode=debug_mode,
                 force_cpu=force_cpu
@@ -512,15 +513,31 @@ def main() -> int:
                     print("❌ Interactive login failed. You may still be able to access public content.")
                     print("   Consider trying browser handoff or using regular login with credentials.")
             elif args.login:
+                # Use command line credentials if provided, otherwise use config/env credentials
                 if args.username and args.password:
-                    print(f"🔐 Logging into Instagram as {args.username}...")
+                    print(f"🔐 Logging into Instagram using provided credentials...")
                     login_success = scraper.login(args.username, args.password)
-                    
-                    if not login_success:
-                        print("❌ Login failed. Continuing without authentication...")
                 else:
-                    print("⚠️  --login flag provided but no username/password specified")
-                    print("   Either provide --username and --password or set credentials in config.yaml")
+                    # Use credentials from config/environment (.env file)
+                    import os
+                    from dotenv import load_dotenv
+                    load_dotenv()
+                    
+                    env_username = os.getenv('INSTAGRAM_USERNAME') or config.instagram.credentials.username
+                    env_password = os.getenv('INSTAGRAM_PASSWORD') or config.instagram.credentials.password
+                    
+                    if env_username and env_password:
+                        print(f"🔐 Logging into Instagram using credentials from .env file...")
+                        login_success = scraper.login(env_username, env_password)
+                    else:
+                        print("❌ No Instagram credentials found")
+                        print("   Please set INSTAGRAM_USERNAME and INSTAGRAM_PASSWORD in .env file")
+                        print("   or provide --username and --password arguments")
+                        login_success = False
+                
+                if not login_success:
+                    print("⚠️  Login failed or skipped. Continuing without authentication...")
+                    print("   Note: Private profiles and some content may not be accessible")
                 
             # Process profile
             print(f"Processing profile: {args.profile_url}")

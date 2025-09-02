@@ -1,22 +1,42 @@
-selenium>=4.15.0
-webdriver-manager>=4.0.1
-pyyaml>=6.0.1
-python-dotenv>=1.0.0
-requests>=2.31.0
-beautifulsoup4>=4.12.2
-fake-useragent>=1.4.0
-pytest>=7.4.0
+# Web scraping
+selenium==4.35.0
+webdriver-manager==4.0.2
+beautifulsoup4==4.13.4
+fake-useragent==2.2.0
 
-# Video processing and transcription dependencies
-openai-whisper>=20231117
-moviepy>=1.0.3
-ffmpeg-python>=0.2.0
-torch==2.1.0
-torchaudio==2.1.0
-numpy>=1.24.0,<2.3.0
+# Core utilities
+requests==2.32.4
+pyyaml==6.0.2
+python-dotenv==1.1.1
 
-# Optional OCR dependencies (legacy)  
-Pillow>=10.0.0
-opencv-python>=4.8.0
-pytesseract>=0.3.10
-easyocr>=1.7.0
+# Web interface
+flask==3.1.1
+gunicorn==22.0.0
+
+# Vector database & RAG
+qdrant-client==1.15.1
+sentence-transformers==5.1.0
+
+# AI/ML APIs
+anthropic==0.64.0
+
+# Video transcription
+openai-whisper==20240930
+moviepy==2.2.1
+ffmpeg-python==0.2.0
+torch>=2.1.0
+torchaudio>=2.1.0
+
+# Data processing
+numpy==1.26.4
+pandas==2.3.1
+scikit-learn==1.7.1
+
+# Testing
+pytest==8.4.1
+
+# Optional: Legacy OCR (marked for removal)
+# Pillow==11.3.0
+# opencv-python==4.12.0.88
+# pytesseract==0.3.13
+# easyocr==1.7.2

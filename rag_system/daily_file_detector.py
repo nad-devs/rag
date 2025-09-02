@@ -25,15 +25,15 @@ class DailyFileDetector:
         """Scan output/ directory for all raw Instagram files"""
         raw_files = {}
         
-        # Look for all JSON files in output directory
-        pattern = str(self.output_dir / "**" / "*.json")
+        # Look for all JSON files directly in output directory (no subdirectories)
+        pattern = str(self.output_dir / "*.json")
         
-        for file_path in glob.glob(pattern, recursive=True):
+        for file_path in glob.glob(pattern):
             # Extract shortcode from filename
             filename = os.path.basename(file_path)
             
             # Skip summary files, metadata files, and enhanced files that are in wrong directory
-            if any(skip in filename for skip in ['instagram_captions_', 'profile_', 'summary', 'enhanced_']):
+            if any(skip in filename for skip in ['instagram_captions_', 'profile_', 'summary', 'enhanced_', '_batch_progress']):
                 continue
                 
             # Extract shortcode (filename without .json)
@@ -46,10 +46,10 @@ class DailyFileDetector:
         """Scan enhanced_processed/ directory for all enhanced files"""
         enhanced_files = {}
         
-        # Look for all enhanced JSON files
-        pattern = str(self.enhanced_dir / "**" / "enhanced_*.json")
+        # Look for all enhanced JSON files directly in enhanced_processed directory
+        pattern = str(self.enhanced_dir / "enhanced_*.json")
         
-        for file_path in glob.glob(pattern, recursive=True):
+        for file_path in glob.glob(pattern):
             filename = os.path.basename(file_path)
             
             # Extract shortcode from enhanced filename

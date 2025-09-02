@@ -1,0 +1,20 @@
+# Files/folders to NOT upload to server
+browser_profiles/
+output/
+logs/
+drivers/
+__pycache__/
+.git/
+.claude/
+daily_automation_report_*.json
+rag_system/enhanced_processed/
+rag_system/hybrid_rag_logs/
+content_pattern_analysis.json
+fixed_hierarchical_discovery_map_*.json
+hierarchical_discovery_map_*.json
+user_intent_discovery_map_*.json
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+Thumbs.db

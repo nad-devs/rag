@@ -49,9 +49,9 @@ class DailyOrchestrator:
         # Target profiles for Instagram scraping
         self.target_profiles = [
             {
-                "url": "https://www.instagram.com/aevytvdaily/",
+                "url": "https://www.instagram.com/edhonour/",
                 "name": "edhonour",
-                "max_reels": 5,  # One-time full sync to process more reels
+                "max_reels": 10,  # Reduced to 10 reels for faster testing
                 "skip_first": 3,  # Skip first 3 pinned posts to avoid confusion
                 "priority": "high"
             }
@@ -117,14 +117,14 @@ class DailyOrchestrator:
                 
                 try:
                     # Run the existing main.py scraper with incremental mode
-                    # Use explicit login for automation using .env credentials
+                    # Use headless mode with automatic login using .env credentials
                     cmd = [
                         sys.executable, 'main.py',
                         '--profile-url', profile_url,
                         '--max-reels', str(max_reels),
                         '--skip', '3',  # Click right arrow 3 times to skip pinned posts
-                        '--force-cpu',   # Force CPU usage to avoid GPU memory issues
-                        '--browser-handoff'  # Use browser handoff like the working command
+                        '--headless',     # Use headless mode for server environment
+                        '--login'        # Use automatic login with credentials from .env
                     ]
                     
                     print(f"   📋 Running: {' '.join(cmd)}")
@@ -150,8 +150,8 @@ class DailyOrchestrator:
                             from pathlib import Path
                             import glob
                             
-                            # Check for new files in output directory
-                            output_pattern = f"output/{profile_name}_*/*.json"
+                            # Check for new files in output directory (no subdirectories now)
+                            output_pattern = "output/*.json"
                             recent_files = []
                             
                             for file_path in glob.glob(output_pattern):
@@ -303,63 +303,27 @@ class DailyOrchestrator:
             print(f"❌ Vector update failed: {e}")
             return {'success': False, 'error': str(e)}
     
-    def generate_report(self, scraping_result: dict, detection_result: dict, enhancement_result: dict, vector_result: dict) -> dict:
-        """Generate comprehensive daily report"""
-        
+    def print_summary(self, scraping_result: dict, detection_result: dict, enhancement_result: dict, vector_result: dict):
+        """Print simple summary for cron job monitoring"""
         end_time = datetime.now()
         duration = (end_time - self.start_time).total_seconds()
         
-        report = {
-            'timestamp': self.start_time.isoformat(),
-            'duration_seconds': duration,
-            'duration_formatted': f"{duration:.1f}s",
-            'steps': {
-                'scraping': scraping_result,
-                'detection': detection_result,
-                'enhancement': enhancement_result,  
-                'vectorization': vector_result
-            }
-        }
-        
-        # Calculate totals
+        # Simple success/fail status for cron monitoring
         enhancement_results = enhancement_result.get('results', {})
-        vector_results = vector_result.get('results', {})
         
-        report['summary'] = {
-            'new_reels_scraped': scraping_result.get('new_reels_found', 0),
-            'files_detected': len(detection_result.get('report', {}).get('files_to_process', [])),
-            'files_enhanced': len(enhancement_results.get('successful', [])),
-            'files_vectorized': vector_results.get('total_added', 0),
-            'total_cost': enhancement_results.get('total_cost', 0.0),
-            'overall_success': all([
-                detection_result.get('success', False),
-                enhancement_result.get('success', False) or enhancement_result.get('partial', False),
-                vector_result.get('success', False) or vector_result.get('partial', False)
-            ])
-        }
+        new_reels = scraping_result.get('new_reels_found', 0)
+        files_detected = len(detection_result.get('report', {}).get('files_to_process', []))
+        files_enhanced = len(enhancement_results.get('successful', []))
+        files_vectorized = vector_result.get('results', {}).get('total_added', 0)
         
-        return report
-    
-    def print_final_report(self, report: dict):
-        """Print comprehensive final report"""
-        print("\n" + "="*60)
-        print("📊 DAILY AUTOMATION COMPLETE")
-        print("="*60)
+        # Simple one-line summary for easy grep in logs
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] COMPLETE - Reels: {new_reels}, Enhanced: {files_enhanced}, Vectorized: {files_vectorized}, Duration: {duration:.1f}s")
         
-        summary = report['summary']
-        print(f"⏱️ Total time: {report['duration_formatted']}")
-        print(f"📱 New reels scraped: {summary['new_reels_scraped']}")
-        print(f"📁 Files detected: {summary['files_detected']}")
-        print(f"🤖 Files enhanced: {summary['files_enhanced']}")
-        print(f"🗂️ Files vectorized: {summary['files_vectorized']}")
-        print(f"💰 Total cost: ${summary['total_cost']:.4f}")
-        
-        if summary['overall_success']:
-            print("🎉 Overall status: SUCCESS")
+        # Return exit code for cron
+        if detection_result.get('success', False):
+            return 0
         else:
-            print("⚠️ Overall status: PARTIAL SUCCESS (check logs above)")
-        
-        print("="*60)
+            return 1
     
     def run_preflight_checks(self) -> bool:
         """
@@ -438,17 +402,14 @@ class DailyOrchestrator:
             print("💡 Quick fix: Run ./start_automation.sh to set up all dependencies")
             return False
 
-    def run_full_pipeline(self, save_report: bool = True, skip_scraping: bool = False) -> dict:
+    def run_full_pipeline(self, skip_scraping: bool = False) -> int:
         """Run the complete daily automation pipeline"""
         
         # Step -1: Pre-flight checks to prevent API waste
         print("🔍 Starting daily automation with dependency validation...")
         if not self.run_preflight_checks():
-            # Return failure report without attempting any work
-            failed_result = {'success': False, 'skipped': True, 'error': 'Pre-flight checks failed'}
-            report = self.generate_report(failed_result, failed_result, failed_result, failed_result)
             print("❌ Automation halted due to dependency issues")
-            return report
+            return 1  # Return error code for cron
         
         # Step 0: Instagram Scraping (optional)
         if not skip_scraping:
@@ -465,17 +426,13 @@ class DailyOrchestrator:
         if not detection_result['success']:
             vector_result = {'success': False, 'skipped': True}
             enhancement_result = {'success': False, 'skipped': True}
-            report = self.generate_report(scraping_result, detection_result, enhancement_result, vector_result)
-            self.print_final_report(report)
-            return report
+            return self.print_summary(scraping_result, detection_result, enhancement_result, vector_result)
         
         # Early exit if no files found
         if detection_result.get('early_exit'):
             enhancement_result = {'success': True, 'skipped': True, 'results': {'successful': [], 'failed': [], 'total_cost': 0.0}}
             vector_result = {'success': True, 'skipped': True, 'results': {'total_added': 0, 'total_skipped': 0, 'failed': []}}
-            report = self.generate_report(scraping_result, detection_result, enhancement_result, vector_result)
-            self.print_final_report(report)
-            return report
+            return self.print_summary(scraping_result, detection_result, enhancement_result, vector_result)
         
         # Step 2: Enhance files
         files_to_process = detection_result['report']['files_to_process']
@@ -490,37 +447,8 @@ class DailyOrchestrator:
         
         vector_result = self.step_3_update_vectors(enhanced_file_paths)
         
-        # Generate and save report
-        report = self.generate_report(scraping_result, detection_result, enhancement_result, vector_result)
-        
-        if save_report:
-            timestamp = self.start_time.strftime("%Y%m%d_%H%M%S")
-            report_file = f"daily_automation_report_{timestamp}.json"
-            
-            # Convert any datetime objects to strings for JSON serialization
-            def serialize_datetime(obj):
-                if hasattr(obj, 'isoformat'):
-                    return obj.isoformat()
-                return obj
-            
-            # Deep convert datetime objects
-            def convert_datetimes(obj):
-                if isinstance(obj, dict):
-                    return {k: convert_datetimes(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_datetimes(item) for item in obj]
-                elif hasattr(obj, 'isoformat'):  # datetime object
-                    return obj.isoformat()
-                return obj
-            
-            serializable_report = convert_datetimes(report)
-            
-            with open(report_file, 'w') as f:
-                json.dump(serializable_report, f, indent=2)
-            print(f"📄 Detailed report saved: {report_file}")
-        
-        self.print_final_report(report)
-        return report
+        # Print summary and return exit code
+        return self.print_summary(scraping_result, detection_result, enhancement_result, vector_result)
 
 
 def main():
@@ -564,8 +492,8 @@ def main():
             
         else:
             # Run full pipeline
-            report = orchestrator.run_full_pipeline(save_report=not args.no_report, skip_scraping=args.skip_scraping)
-            return 0 if report['summary']['overall_success'] else 1
+            exit_code = orchestrator.run_full_pipeline(skip_scraping=args.skip_scraping)
+            return exit_code
             
     except KeyboardInterrupt:
         print("\n⏹️ Daily automation interrupted by user")

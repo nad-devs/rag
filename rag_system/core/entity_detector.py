@@ -16,7 +16,7 @@ class EntityDetector:
         self.use_mistral = use_mistral
         self.local_entity_extractor = local_entity_extractor
     
-    def extract_entity_from_query(self, query: str) -> str:
+    def extract_entity_from_query(self, query: str, conversation_context: Dict[str, Any] = None) -> str:
         """
         Extract entity using both Claude and Local models for comparison
         
@@ -26,41 +26,36 @@ class EntityDetector:
         Returns:
             Main entity/topic as string (Claude result for now)
         """
+        import time
+        step_start = time.time()
         
         # Define Mistral extraction function 
         def mistral_extract(query_text: str) -> str:
-            prompt = f"""
-Extract the main topic/entity from this user question: "{query_text}"
+            # Time prompt construction
+            prompt_start = time.time()
+            if conversation_context and conversation_context.get('entities'):
+                previous_entities = ", ".join(conversation_context['entities'][-3:])
+                prompt = f"""Previous conversation was about: {previous_entities}
+Current question: "{query_text}"
 
-Rules:
-1. Return ONLY the main topic/entity name (2-8 words max)
-2. Use lowercase
-3. PRESERVE domain-specific qualifiers (e.g., "vibe coding", "backend developers", "ai coding")
-4. For compound tools, keep both words (e.g., "claude code", "gemini cli")
-5. For specific methodologies/approaches, preserve the full term (e.g., "vibe coding", "context engineering")
-6. PRESERVE NUMBERS when they specify quantity (e.g., "5 topics", "3 practices")
-7. Include role/context when relevant (e.g., "backend developers", "software engineers")
-8. For very specific technical terms (like "end cap", "wifi penetration"), focus on these exact terms
-9. Don't mix broad topics with specific technical terms - focus on the most specific part of the query
-10. If asking about multiple unrelated topics, prioritize the most specific technical terms
+If the current question contains pronouns like "it", "this", "that", resolve them using the previous conversation context.
+Extract the main topic/entity:"""
+            else:
+                prompt = f"""Extract the main topic/entity from this user question: "{query_text}" """
+            print(f"🔍 Entity prompt construction: {time.time() - prompt_start:.2f}s")
 
-Examples:
-- "What is Claude Code?" → "claude code"
-- "How does Gemini CLI work?" → "gemini cli"  
-- "Tell me about AI debugging" → "ai debugging"
-- "What is the most important vibe coding tip?" → "vibe coding tips"
-- "AI coding tips for backend developers" → "ai coding tips for backend developers"
-- "Is there anything about end cap or wifi penetration in AI and cyber security?" → "end cap wifi penetration"
-- "What does Ed think about neural networks and deep learning?" → "neural networks deep learning"
-- "RAG implementation tips" → "rag implementation"
-- "Python best practices" → "python best practices"
-- "What are 5 topics every engineer should know?" → "5 software engineering topics"
-- "Give me 3 best practices for coding" → "3 coding best practices"
-- "How do I start with command line AI tools?" → "command line ai tools"
-
-Your response (topic only):"""
-
+            # Time LLM API call
+            print(f"🔍 MISTRAL DEBUG:")
+            print(f"   Query length: {len(query_text)} chars")
+            print(f"   Prompt length: {len(prompt)} chars") 
+            print(f"   Prompt preview: {prompt[:200]}...")
+            
+            api_start = time.time()
             if self.use_mistral:
+                print(f"   Model: mistral-large-latest")
+                print(f"   Max tokens: 20")
+                print(f"   Temperature: 0.1")
+                
                 # Use Mistral for entity extraction
                 response = self.client.chat.completions.create(
                     model="mistral-large-latest",
@@ -68,8 +63,11 @@ Your response (topic only):"""
                     temperature=0.1,
                     max_tokens=20
                 )
-                return response.choices[0].message.content.strip().lower()
             else:
+                print(f"   Model: gpt-4")
+                print(f"   Max tokens: 20")
+                print(f"   Temperature: 0.1")
+                
                 # Fallback to other models
                 response = self.client.chat.completions.create(
                     model="gpt-4",
@@ -77,32 +75,68 @@ Your response (topic only):"""
                     temperature=0.1,
                     max_tokens=20
                 )
-                return response.choices[0].message.content.strip().lower()
+            
+            api_duration = time.time() - api_start
+            print(f"🔍 MISTRAL RESPONSE:")
+            print(f"   API call duration: {api_duration:.2f}s")
+            print(f"   Response length: {len(str(response))} chars")
+            print(f"   Response preview: {str(response)[:200]}...")
+            print(f"   Response object type: {type(response)}")
+            print(f"🔍 Entity LLM API call: {api_duration:.2f}s")
+            
+            # Time response processing
+            process_start = time.time()
+            result = response.choices[0].message.content.strip().lower()
+            print(f"🔍 Entity response processing: {time.time() - process_start:.2f}s")
+            
+            return result
         
         # Use hybrid extractor if available
+        entity = None
         if self.local_entity_extractor and self.local_entity_extractor.available:
             try:
+                print(f"🔍 LOCAL ENTITY EXTRACTOR DEBUG:")
+                print(f"   Query length: {len(query)} chars")
+                print(f"   Query preview: {query[:200]}...")
+                print(f"   Local extractor type: {type(self.local_entity_extractor)}")
+                print(f"   Local extractor available: {self.local_entity_extractor.available}")
+                
+                local_start = time.time()
                 result = self.local_entity_extractor.extract_entity(query)
+                local_duration = time.time() - local_start
+                
+                print(f"🔍 LOCAL ENTITY EXTRACTOR RESPONSE:")
+                print(f"   Extraction duration: {local_duration:.2f}s")
+                print(f"   Result type: {type(result)}")
+                print(f"   Result preview: {str(result)[:200]}...")
+                print(f"🔍 Local entity extraction: {local_duration:.2f}s")
+                
                 # Return Claude result for now (but we see the comparison)
-                return result["primary_entity"]
+                entity = result["primary_entity"]
             except Exception as e:
                 print(f"⚠️ Hybrid entity extraction failed: {e}")
         
-        # Fallback to Mistral only
-        try:
-            return mistral_extract(query)
-        except Exception as e:
-            print(f"⚠️ Claude entity extraction error: {e}")
-            # Simple fallback
-            query_lower = query.lower()
-            common_entities = ["claude code", "gemini cli", "ai", "debugging", "rag", "python", "javascript"]
-            
-            for entity in common_entities:
-                if entity in query_lower:
-                    return entity
-            
-            words = [word for word in query.split() if len(word) > 3]
-            return words[0].lower() if words else "general"
+        # Fallback to Mistral only if local extractor didn't work
+        if entity is None:
+            try:
+                entity = mistral_extract(query)
+            except Exception as e:
+                print(f"⚠️ Claude entity extraction error: {e}")
+                # Simple fallback
+                query_lower = query.lower()
+                common_entities = ["claude code", "gemini cli", "ai", "debugging", "rag", "python", "javascript"]
+                
+                for common_entity in common_entities:
+                    if common_entity in query_lower:
+                        entity = common_entity
+                        break
+                
+                if entity is None:
+                    words = [word for word in query.split() if len(word) > 3]
+                    entity = words[0].lower() if words else "general"
+        
+        print(f"🔍 Total entity extraction: {time.time() - step_start:.2f}s")
+        return entity
     
     def extract_query_concepts(self, query: str) -> List[str]:
         """Extract key concepts from user query for cross-document search"""

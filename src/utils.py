@@ -425,14 +425,12 @@ def save_individual_reel_files(profile_data: Dict[str, Any], config: Config) -> 
     profile_username = profile_data.get('profile_username', 'unknown')
     scan_timestamp = profile_data.get('scan_timestamp', datetime.now().timestamp())
     
-    # Create timestamp string for folder organization
-    timestamp_str = datetime.fromtimestamp(scan_timestamp).strftime("%Y%m%d_%H%M%S")
+    # No subdirectory - save files directly in output folder
+    # timestamp_str = datetime.fromtimestamp(scan_timestamp).strftime("%Y%m%d_%H%M%S")
+    # profile_dir = output_dir / f"{profile_username}_{timestamp_str}"
+    # profile_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create profile-specific directory
-    profile_dir = output_dir / f"{profile_username}_{timestamp_str}"
-    profile_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Save each reel as individual file
+    # Save each reel as individual file directly in output directory
     for i, reel_data in enumerate(profile_data.get('reels', []), 1):
         try:
             # Extract shortcode for filename
@@ -441,7 +439,7 @@ def save_individual_reel_files(profile_data: Dict[str, Any], config: Config) -> 
             # Create filename
             if config.output.format.lower() == "json":
                 filename = f"{shortcode}.json"
-                file_path = profile_dir / filename
+                file_path = output_dir / filename
                 
                 # Save as JSON
                 with open(file_path, 'w', encoding='utf-8') as f:
@@ -449,7 +447,7 @@ def save_individual_reel_files(profile_data: Dict[str, Any], config: Config) -> 
                     
             elif config.output.format.lower() == "csv":
                 filename = f"{shortcode}.csv"
-                file_path = profile_dir / filename
+                file_path = output_dir / filename
                 
                 # Flatten the data for CSV
                 flattened_data = flatten_reel_data(reel_data)
@@ -507,17 +505,18 @@ def get_processed_reels(output_dir: Path, profile_username: str) -> set:
     """Get set of already processed reel shortcodes to avoid duplicates."""
     processed = set()
     
-    # Look for existing profile directories
-    pattern = f"{profile_username}_*"
-    for profile_dir in output_dir.glob(pattern):
-        if profile_dir.is_dir():
-            # Get all JSON/CSV files in the directory
-            for file_path in profile_dir.glob("*.json"):
-                shortcode = file_path.stem  # filename without extension
-                processed.add(shortcode)
-            for file_path in profile_dir.glob("*.csv"):
-                shortcode = file_path.stem
-                processed.add(shortcode)
+    # Look for all JSON/CSV files directly in the output directory
+    for file_path in output_dir.glob("*.json"):
+        # Skip summary/metadata files
+        if not any(skip in file_path.stem for skip in ['instagram_captions_', 'profile_', 'summary', 'enhanced_', '_batch_progress']):
+            shortcode = file_path.stem  # filename without extension
+            processed.add(shortcode)
+    
+    for file_path in output_dir.glob("*.csv"):
+        # Skip summary/metadata files
+        if not any(skip in file_path.stem for skip in ['instagram_captions_', 'profile_', 'summary', 'enhanced_', '_batch_progress']):
+            shortcode = file_path.stem
+            processed.add(shortcode)
     
     return processed
 

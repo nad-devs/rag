@@ -10,7 +10,6 @@ import sys
 import time
 from typing import Dict, Any, List
 from datetime import datetime
-import openai
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
@@ -20,12 +19,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class ProductionEnhancer:
     def __init__(self):
-        self.openai_client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.anthropic_client = Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
         
         # Cost tracking (per 1M tokens)
         self.costs = {
-            'gpt-4': {'input': 30.00, 'output': 60.00},  # $30/$60 per 1M tokens
             'claude-3-5-sonnet': {'input': 3.00, 'output': 15.00}  # $3/$15 per 1M tokens
         }
         
@@ -185,71 +182,6 @@ IMPORTANT: Return ONLY the JSON structure. No additional text or explanation."""
 
         return prompt
 
-    def enhance_with_gpt4(self, raw_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhance content using GPT-4"""
-        content_text = raw_data.get('caption', '') or raw_data.get('transcription_data', {}).get('full_text', '')
-        prompt = self.create_enhancement_prompt(content_text)
-        
-        start_time = time.time()
-        
-        try:
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": "You are an expert content analyzer. Return only valid JSON."
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                max_tokens=2500
-            )
-            
-            processing_time = time.time() - start_time
-            raw_response = response.choices[0].message.content
-            
-            # Parse JSON response
-            enhancement_data = json.loads(raw_response)
-            
-            # Add metadata
-            result = {
-                "document_id": f"edhonour_{raw_data.get('shortcode', 'unknown')}",
-                "source_metadata": {
-                    "profile": raw_data.get('profile_username', 'edhonour'),
-                    "shortcode": raw_data.get('shortcode', ''),
-                    "url": raw_data.get('url', ''),
-                    "video_url": raw_data.get('video_url_extracted', ''),
-                    "confidence_score": raw_data.get('processing_info', {}).get('confidence_score', 1),
-                    "language": raw_data.get('transcription_data', {}).get('language', 'en'),
-                    "position_in_profile": raw_data.get('position_in_profile', 0),
-                    "extraction_timestamp": raw_data.get('extraction_timestamp', time.time())
-                },
-                **enhancement_data,
-                "processing_info": {
-                    "model_used": "gpt-4",
-                    "extraction_method": "user_focused_learning",
-                    "content_length": len(content_text),
-                    "word_count": len(content_text.split()),
-                    "processing_timestamp": time.time(),
-                    "processing_time": processing_time
-                }
-            }
-            
-            # Calculate cost
-            input_tokens = len(prompt.split()) * 1.3  # Rough token estimate
-            output_tokens = len(raw_response.split()) * 1.3
-            cost = (input_tokens * self.costs['gpt-4']['input'] + output_tokens * self.costs['gpt-4']['output']) / 1000000
-            
-            return {
-                'result': result,
-                'cost': cost,
-                'processing_time': processing_time,
-                'tokens': {'input': input_tokens, 'output': output_tokens}
-            }
-            
-        except Exception as e:
-            return {'error': str(e), 'cost': 0, 'processing_time': processing_time}
 
     def enhance_with_claude(self, raw_data: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
         """Enhance content using Claude 3.5 Sonnet with preprocessing and retry logic"""
@@ -412,14 +344,10 @@ IMPORTANT: Return ONLY the JSON structure. No additional text or explanation."""
             
             # Determine output path
             if output_dir is None:
-                # Use the enhanced_processed directory structure
+                # Use the enhanced_processed directory directly without subdirectories
                 # Get project root (where this script's parent directory is)
                 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                enhanced_dir = os.path.join(project_root, 'rag_system', 'enhanced_processed')
-                
-                # Maintain directory structure
-                raw_dir_name = os.path.basename(os.path.dirname(raw_file_path))
-                output_subdir = os.path.join(enhanced_dir, raw_dir_name)
+                output_subdir = os.path.join(project_root, 'rag_system', 'enhanced_processed')
             else:
                 output_subdir = output_dir
             

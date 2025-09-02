@@ -41,7 +41,11 @@ class InstagramScraper:
     
     def __init__(self, config_path: str = "config.yaml", force_firefox: bool = False, debug_mode: bool = False, force_cpu: bool = False):
         """Initialize the scraper with configuration."""
-        self.config = Config(config_path)
+        # Allow config_path to be either a string path or a Config object
+        if isinstance(config_path, str):
+            self.config = Config(config_path)
+        else:
+            self.config = config_path
         self.logger = setup_logging(self.config)
         self.driver = None
         self.wait = None
@@ -440,19 +444,28 @@ class InstagramScraper:
         }
         options.add_experimental_option("prefs", prefs)
         
-        # User agent rotation
-        if self.config.anti_detection.user_agent_rotation:
-            user_agent = self._get_random_user_agent()
-            options.add_argument(f"--user-agent={user_agent}")
-            self.logger.debug(f"Using User-Agent: {user_agent}")
+        # FORCE DESKTOP USER AGENT to get the classic login page (not mobile version)
+        # This prevents the language selection issue
+        # Randomize the Chrome version slightly to avoid detection
+        import random
+        chrome_version = random.choice(["119", "120", "121", "122"])
+        desktop_user_agent = f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_version}.0.0.0 Safari/537.36"
+        options.add_argument(f"--user-agent={desktop_user_agent}")
+        self.logger.info(f"Using desktop User-Agent (Chrome {chrome_version}) to force classic login page")
         
-        # Window size
+        # Window size - ALWAYS use desktop resolution to avoid mobile version
+        # Mobile version triggers language selection issues
         if self.config.selenium.window_size:
             width = self.config.selenium.window_size.width
             height = self.config.selenium.window_size.height
+            # Ensure minimum desktop size
+            if width < 1024:
+                width = 1920
+                height = 1080
+                self.logger.info("Overriding to desktop resolution to avoid mobile login page")
             options.add_argument(f"--window-size={width},{height}")
         else:
-            # Default to common resolution
+            # Default to desktop resolution
             options.add_argument("--window-size=1920,1080")
         
         # Connect to existing Chrome if browser handoff was used
@@ -474,7 +487,13 @@ class InstagramScraper:
                 return None
         
         # User data directory for session persistence (fallback mode)
-        if self.config.selenium.user_data_dir:
+        # Use a unique temp directory in headless mode to avoid conflicts
+        if self.config.selenium.headless:
+            import tempfile
+            temp_dir = tempfile.mkdtemp(prefix="chrome_scraper_")
+            options.add_argument(f"--user-data-dir={temp_dir}")
+            self.logger.info(f"Using temporary Chrome profile: {temp_dir}")
+        elif self.config.selenium.user_data_dir:
             options.add_argument(f"--user-data-dir={self.config.selenium.user_data_dir}")
         
         try:
@@ -885,23 +904,105 @@ class InstagramScraper:
                 self.logger.warning("No Instagram credentials provided")
                 return False
             
-            self.logger.info(f"🔐 Logging into Instagram as: {username}")
-            self.driver.get(self.config.instagram.login_url)
-            self._random_delay(1, 2)
+            self.logger.info(f"🔐 Attempting Instagram login for user: {username[:3]}***")
+            # Use the main Instagram page and let it redirect to login
+            self.driver.get("https://www.instagram.com/")
+            self._random_delay(1, 2)  # Reduced from 2-3
             
-            # Handle any initial popups
+            # Screenshot 1: Initial page (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_step1_initial.png")
+                self.logger.debug("Screenshot saved: login_step1_initial.png")
+            
+            # Try to click the "Open Instagram" button instead of "Log in" which goes to Facebook
+            open_clicked = False
+            try:
+                # Look for the "Open Instagram" button first
+                open_selectors = [
+                    "//button[contains(text(), 'Open Instagram')]",
+                    "//a[contains(text(), 'Open Instagram')]",
+                    "//div[contains(text(), 'Open Instagram')]",
+                    "//*[text()='Open Instagram']",
+                    "button[contains(@class, 'primary')]"  # Sometimes it's the primary button
+                ]
+                
+                for selector in open_selectors:
+                    try:
+                        if selector.startswith("//"):
+                            open_button = self.driver.find_element(By.XPATH, selector)
+                        elif selector.startswith("button["):
+                            open_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                        else:
+                            open_button = self.driver.find_element(By.XPATH, selector)
+                        
+                        if open_button and open_button.is_displayed():
+                            self.logger.info(f"Found 'Open Instagram' button with selector: {selector}")
+                            open_button.click()
+                            open_clicked = True
+                            self.logger.info("✅ Clicked 'Open Instagram' button")
+                            break
+                    except:
+                        continue
+                
+                if open_clicked:
+                    self._random_delay(1, 1.5)  # Reduced from 2-3
+                    self.logger.info(f"Navigated to: {self.driver.current_url}")
+            except Exception as e:
+                self.logger.warning(f"Could not find 'Open Instagram' button: {e}")
+            
+            # Fallback: If clicking didn't work, navigate directly
+            current_url = self.driver.current_url
+            if "login" not in current_url:
+                self.logger.info("Fallback: Navigating directly to login page")
+                self.driver.get("https://www.instagram.com/accounts/login/")
+                self._random_delay(1, 2)  # Reduced from 2-3
+                
+            # Screenshot 2: After navigation to login (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_step2_after_nav.png")
+                self.logger.debug("Screenshot saved: login_step2_after_nav.png")
+            
+            # Handle any initial popups and cookie consent
             self._handle_popups()
+            
+            # Try to accept cookies if present
+            try:
+                cookie_button = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Allow') or contains(text(), 'Accept')]")
+                if cookie_button.is_displayed():
+                    cookie_button.click()
+                    self.logger.info("Accepted cookie consent")
+                    self._random_delay(1, 2)
+            except:
+                pass  # No cookie banner
+            
+            # Language selector removed - not needed with desktop User-Agent
+            
+            # Log current page for debugging
+            self.logger.info(f"Current URL: {self.driver.current_url}")
+            self.logger.info(f"Page title: {self.driver.title}")
             
             # Wait for login form with multiple selector strategies
             username_input = self._find_username_input()
             if not username_input:
                 self.logger.error("Username input field not found")
+                # Save screenshot to see what page we're on
+                try:
+                    self.driver.save_screenshot("login_page_issue.png")
+                    self.logger.info("Screenshot saved to login_page_issue.png")
+                except:
+                    pass
                 return False
             
             # Clear and enter username
             username_input.clear()
             self._human_type(username_input, username)
-            self._random_delay(1, 2)
+            self.logger.info(f"Entered username: {username}")
+            
+            # Screenshot after username (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_step4_after_username.png")
+                self.logger.debug("Screenshot saved: login_step4_after_username.png")
+            self._random_delay(0.5, 1)  # Reduced from 1-2
             
             # Find password input
             password_input = self._find_password_input()
@@ -911,7 +1012,13 @@ class InstagramScraper:
             
             password_input.clear()
             self._human_type(password_input, password)
-            self._random_delay(1, 2)
+            self.logger.info("Entered password (hidden)")
+            
+            # Screenshot after password (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_step5_before_submit.png")
+                self.logger.debug("Screenshot saved: login_step5_before_submit.png")
+            self._random_delay(0.5, 1)  # Reduced from 1-2
             
             # Find and click login button
             login_button = self._find_login_button()
@@ -920,25 +1027,338 @@ class InstagramScraper:
                 return False
                 
             login_button.click()
+            self.logger.info("Clicked login button")
             
-            # Wait for login to complete
-            self.logger.info("⏳ Waiting for login to complete...")
-            self._random_delay(2, 3)
+            # Wait briefly to see what happens
+            self._random_delay(1, 2)  # Reduced from 2-3
+            
+            # Wait a bit longer to let Instagram process and redirect
+            self.logger.info("⏳ Waiting for login to process...")
+            self._random_delay(3, 4)  # Give Instagram time to redirect
+            
+            # Check where we are after waiting
+            current_url = self.driver.current_url.lower()
+            self.logger.info(f"URL after login processing: {current_url}")
+            
+            # Screenshot after clicking login (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_step6_after_click.png")
+                self.logger.debug("Screenshot saved: login_step6_after_click.png")
+            
+            # RETRY LOGIC: If we're still on login page, Instagram rejected the attempt
+            login_attempts = 0
+            max_attempts = 3  # Increase attempts since Instagram is picky
+            
+            while "accounts/login" in current_url and login_attempts < max_attempts:
+                login_attempts += 1
+                self.logger.warning(f"⚠️ Still on login page, restarting login process (attempt {login_attempts}/{max_attempts})...")
+                
+                # Check for error messages first
+                error_msg = self._check_login_errors()
+                if error_msg and ("incorrect" in error_msg.lower() or "wrong" in error_msg.lower()):
+                    self.logger.error(f"❌ Login failed with error: {error_msg}")
+                    return False
+                elif error_msg and ("try again" in error_msg.lower() or "too many" in error_msg.lower()):
+                    # Rate limited - wait longer
+                    self.logger.warning(f"⚠️ Rate limited: {error_msg}. Waiting 30 seconds...")
+                    self._random_delay(25, 35)
+                    login_attempts -= 1  # Don't count this as an attempt
+                    continue
+                
+                # Restart the EXACT same login process from the beginning
+                self.logger.info("🔄 Restarting login from the beginning...")
+                
+                # Start from main Instagram page (same as initial login does)
+                self.driver.get("https://www.instagram.com/")
+                self._random_delay(1, 1.5)  # Reduced for retry
+                
+                # Try to click "Open Instagram" button (same as initial)
+                open_clicked = False
+                try:
+                    open_selectors = [
+                        "//button[contains(text(), 'Open Instagram')]",
+                        "//a[contains(text(), 'Open Instagram')]",
+                        "//div[contains(text(), 'Open Instagram')]",
+                        "//*[text()='Open Instagram']",
+                        "button[contains(@class, 'primary')]"
+                    ]
+                    
+                    for selector in open_selectors:
+                        try:
+                            if selector.startswith("//"):
+                                open_button = self.driver.find_element(By.XPATH, selector)
+                            elif selector.startswith("button["):
+                                open_button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                            else:
+                                open_button = self.driver.find_element(By.XPATH, selector)
+                            
+                            if open_button and open_button.is_displayed():
+                                open_button.click()
+                                open_clicked = True
+                                self.logger.info("✅ Clicked 'Open Instagram' button")
+                                break
+                        except:
+                            continue
+                    
+                    if open_clicked:
+                        self._random_delay(1, 1.5)  # Reduced for retry
+                except:
+                    pass
+                
+                # Fallback: Navigate directly to login page (same as initial)
+                current_url = self.driver.current_url
+                if "login" not in current_url:
+                    self.logger.info("Fallback: Navigating directly to login page")
+                    self.driver.get("https://www.instagram.com/accounts/login/")
+                    self._random_delay(1, 1.5)  # Reduced for retry
+                
+                # Handle any popups and cookie consent (same as initial)
+                self._handle_popups()
+                
+                # Try to accept cookies if present
+                try:
+                    cookie_button = self.driver.find_element(By.XPATH, "//button[contains(text(), 'Allow') or contains(text(), 'Accept')]")
+                    if cookie_button.is_displayed():
+                        cookie_button.click()
+                        self.logger.info("Accepted cookie consent")
+                        self._random_delay(1, 2)
+                except:
+                    pass  # No cookie banner
+                
+                # Language selector not needed with desktop User-Agent
+                
+                # Log current page (same as initial)
+                self.logger.info(f"Current URL: {self.driver.current_url}")
+                self.logger.info(f"Page title: {self.driver.title}")
+                
+                # Find username input (same as initial)
+                username_input = self._find_username_input()
+                if not username_input:
+                    self.logger.error("Username input field not found on retry")
+                    self.driver.save_screenshot(f"login_retry_failed_{login_attempts}.png")
+                    continue
+                
+                # Clear and enter username (same as initial)
+                username_input.clear()
+                self._human_type(username_input, username)
+                self.logger.info(f"Entered username: {username}")
+                self._random_delay(0.5, 1)  # Reduced for retry
+                
+                # Find password input (same as initial)
+                password_input = self._find_password_input()
+                if not password_input:
+                    self.logger.error("Password input field not found on retry")
+                    continue
+                
+                # Clear and enter password (same as initial)
+                password_input.clear()
+                self._human_type(password_input, password)
+                self.logger.info("Entered password (hidden)")
+                self._random_delay(0.5, 1)  # Reduced for retry
+                
+                # Find and click login button (same as initial)
+                login_button = self._find_login_button()
+                if not login_button:
+                    self.logger.error("Login button not found on retry")
+                    continue
+                
+                login_button.click()
+                self.logger.info(f"Clicked login button (retry {login_attempts})")
+                
+                # Wait and check result (same as initial)
+                self._random_delay(1, 2)  # Reduced for retry
+                
+                # Update current URL
+                current_url = self.driver.current_url.lower()
+                self.logger.info(f"URL after retry: {current_url}")
+            
+            # After retry attempts, take a final screenshot (debug mode only)
+            if self.debug_mode:
+                self.driver.save_screenshot("login_final_state.png")
+                self.logger.debug("Screenshot saved: login_final_state.png")
             
             # Check current URL and handle different scenarios
             current_url = self.driver.current_url.lower()
-            self.logger.debug(f"Post-login URL: {current_url}")
+            self.logger.info(f"Post-login URL: {current_url}")
             
-            # Handle 2FA if required
-            if "two_factor" in current_url:
+            # If still on login page after retries, login failed
+            if "accounts/login" in current_url:
+                error_msg = self._check_login_errors()
+                self.logger.error(f"❌ Login failed after retries: {error_msg}")
+                self.driver.save_screenshot("login_failed.png")
+                return False
+            
+            # Check for specific post-login pages
+            if "onetap" in current_url:
+                # This is the "Save Login Info" page
+                self.logger.info("📱 'Save Login Info' page detected")
+                self.driver.save_screenshot("save_login_info_page.png")
+                
+                # First check if this is the "Save Login Info" page (happens after successful login)
+                save_info_found = False
+                try:
+                    # Check for "Save Your Login Info?" text or similar
+                    page_text = self.driver.page_source.lower()
+                    save_info_indicators = [
+                        "save your login",
+                        "save login info",
+                        "remember password",
+                        "keep me logged in"
+                    ]
+                    
+                    if any(indicator in page_text for indicator in save_info_indicators):
+                        self.logger.info("📱 'Save Login Info' page detected - clicking Save Info")
+                        save_info_found = True
+                        
+                        # Try to click "Save Info" or "Not Now" button
+                        save_buttons = [
+                            "//button[contains(text(), 'Save Info')]",
+                            "//button[contains(text(), 'Save')]",
+                            "//button[contains(@aria-label, 'Save')]",
+                            "button:contains('Save Info')",
+                            "button[type='button']"  # Sometimes it's just a generic button
+                        ]
+                        
+                        for selector in save_buttons:
+                            try:
+                                if selector.startswith("//"):
+                                    buttons = self.driver.find_elements(By.XPATH, selector)
+                                else:
+                                    buttons = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                                    
+                                for btn in buttons:
+                                    btn_text = btn.text.lower()
+                                    if btn.is_displayed() and ("save" in btn_text or btn_text == ""):
+                                        btn.click()
+                                        self.logger.info(f"✅ Clicked 'Save Info' button")
+                                        self._random_delay(2, 3)
+                                        save_info_found = True
+                                        break
+                                if save_info_found:
+                                    break
+                            except:
+                                continue
+                except Exception as e:
+                    self.logger.debug(f"Error checking for Save Login Info page: {e}")
+                
+            
+            # Only ask for OTP if we're on a two-factor/challenge page
+            elif "two_factor" in current_url or "challenge" in current_url:
                 self.logger.warning("🔐 Two-factor authentication required")
+                self.driver.save_screenshot("otp_required.png")
+                
+                print("\n" + "="*60)
+                print("🔐 INSTAGRAM TWO-FACTOR AUTHENTICATION")
+                print("="*60)
+                print("Enter the verification code sent to your phone/email.")
+                print("="*60)
+                
+                otp_code = input("📱 Enter OTP code (or press Enter to skip): ").strip()
+                
+                if otp_code:
+                    # Try to find and enter OTP
+                    otp_entered = False
+                    otp_selectors = [
+                        "input[name='verificationCode']",
+                        "input[aria-label*='code']",
+                        "input[placeholder*='code']",
+                        "input[type='tel']",
+                        "input[type='number']",
+                        "input[maxlength='6']",
+                        "input[maxlength='8']",
+                        "input:not([type='hidden']):not([type='password']):not([name='username'])"  # Any visible input
+                    ]
+                    
+                    for selector in otp_selectors:
+                        try:
+                            inputs = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                            for otp_input in inputs:
+                                if otp_input.is_displayed():
+                                    otp_input.clear()
+                                    otp_input.send_keys(otp_code)
+                                    self.logger.info(f"Entered OTP in field: {selector}")
+                                    otp_entered = True
+                                    
+                                    # Screenshot after entering OTP
+                                    self.driver.save_screenshot("otp_entered.png")
+                                    self.logger.info("Screenshot saved: otp_entered.png")
+                                    
+                                    # Try to submit OTP
+                                    try:
+                                        # Press Enter or find submit button
+                                        otp_input.send_keys(Keys.RETURN)
+                                        self.logger.info("Pressed Enter to submit OTP")
+                                    except:
+                                        # Try to find submit button
+                                        for btn_sel in ["button[type='submit']", "button"]:
+                                            try:
+                                                buttons = self.driver.find_elements(By.CSS_SELECTOR, btn_sel)
+                                                for btn in buttons:
+                                                    if btn.is_displayed() and btn.is_enabled():
+                                                        btn.click()
+                                                        self.logger.info("Clicked submit button for OTP")
+                                                        break
+                                            except:
+                                                continue
+                                    break
+                            if otp_entered:
+                                break
+                        except Exception as e:
+                            continue
+                    
+                    if otp_entered:
+                        print("✅ OTP entered, verifying...")
+                        self._random_delay(3, 5)
+                        
+                        # Check if login successful after OTP
+                        if self._is_logged_in():
+                            self.logger.info("✅ Login successful after OTP!")
+                            return True
+                    else:
+                        print("❌ Could not find OTP input field")
+                        self.driver.save_screenshot("otp_field_not_found.png")
+            
+            # Handle 2FA/OTP if required - check URL and page content
+            if "two_factor" in current_url or "challenge" in current_url:
+                self.logger.warning("🔐 Two-factor authentication/OTP required")
+                self.driver.save_screenshot("otp_required.png")
+                self.logger.info("Screenshot saved: otp_required.png")
                 return self._handle_two_factor_auth()
             
-            # Handle login errors
+            # Also check for OTP input field presence
+            try:
+                otp_input = self.driver.find_element(By.CSS_SELECTOR, "input[name='verificationCode'], input[aria-label*='code'], input[placeholder*='code']")
+                if otp_input.is_displayed():
+                    self.logger.warning("🔐 OTP verification detected")
+                    self.driver.save_screenshot("otp_page.png")
+                    return self._handle_two_factor_auth()
+            except:
+                pass
+            
+            # Handle login errors - but give it more time and double-check
             if "login" in current_url and "two_factor" not in current_url:
-                error_msg = self._check_login_errors()
-                self.logger.error(f"❌ Login failed: {error_msg}")
-                return False
+                # Wait a bit more as Instagram sometimes takes time to redirect
+                self._random_delay(3, 5)
+                
+                # Re-check URL after waiting
+                current_url = self.driver.current_url.lower()
+                
+                # Double-check if we're actually logged in (sometimes URL updates slowly)
+                if self._is_logged_in():
+                    self.logger.info("✅ Login successful despite being on login URL")
+                    return True
+                    
+                # If still on login page, check for errors
+                if "login" in current_url:
+                    error_msg = self._check_login_errors()
+                    self.logger.error(f"❌ Login failed: {error_msg}")
+                    # Save screenshot for debugging
+                    try:
+                        self.driver.save_screenshot("login_failed.png")
+                        self.logger.info("Screenshot saved to login_failed.png")
+                    except:
+                        pass
+                    return False
             
             # Handle suspicious activity challenges
             if "challenge" in current_url or "suspicious" in current_url:
@@ -948,13 +1368,61 @@ class InstagramScraper:
             # Handle post-login popups and challenges
             self._handle_post_login_flow()
             
-            # Verify login success
-            if self._is_logged_in():
-                self.logger.info("✅ Login successful!")
-                return True
-            else:
-                self.logger.error("❌ Login verification failed")
+            # Verify login success - but be more lenient
+            # If we're not on login page and no errors, assume success
+            final_url = self.driver.current_url.lower()
+            
+            # Definitely failed if still on login page
+            if "accounts/login" in final_url:
+                error_msg = self._check_login_errors()
+                self.logger.error(f"❌ Still on login page: {error_msg}")
                 return False
+            
+            # Success indicators - check URL patterns
+            # Remove any trailing # or parameters for cleaner comparison
+            clean_url = final_url.split('#')[0].split('?')[0]
+            
+            success_indicators = [
+                clean_url == "https://www.instagram.com/",  # Homepage exact
+                clean_url == "https://www.instagram.com",  # Homepage without slash
+                clean_url == "http://www.instagram.com/",  # HTTP version
+                clean_url == "http://www.instagram.com",  # HTTP without slash
+                "/accounts/edit" in final_url,  # Edit profile
+                "/accounts/onetap" in final_url,  # Save login
+                "/direct" in final_url,  # Messages
+                # Most important: if we're on instagram.com but NOT on login page
+                ("instagram.com" in final_url and "accounts/login" not in final_url)
+            ]
+            
+            if any(success_indicators):
+                self.logger.info("✅ Login successful (URL indicates logged in)")
+                return True
+            
+            # Quick check for basic navigation elements (don't wait too long)
+            try:
+                # Just check if we can find ANY Instagram navigation element quickly
+                self.logger.info("🔍 Quick check for logged-in elements...")
+                quick_check = WebDriverWait(self.driver, 3).until(
+                    lambda driver: (
+                        driver.find_elements(By.CSS_SELECTOR, "svg[aria-label='Home']") or
+                        driver.find_elements(By.CSS_SELECTOR, "a[href='/']") or
+                        driver.find_elements(By.CSS_SELECTOR, "nav") or
+                        driver.find_elements(By.CSS_SELECTOR, "[role='navigation']")
+                    )
+                )
+                if quick_check:
+                    self.logger.info("✅ Login successful (found navigation elements)")
+                    return True
+            except TimeoutException:
+                self.logger.warning("⚠️ Could not find navigation elements quickly")
+            
+            # If we're not on login page and no errors, assume success
+            if "accounts/login" not in final_url:
+                self.logger.info("✅ Login successful (not on login page, assuming success)")
+                return True
+                
+            self.logger.error("❌ Login verification failed")
+            return False
                 
         except Exception as e:
             self.logger.error(f"Login error: {str(e)}")
@@ -1041,24 +1509,39 @@ class InstagramScraper:
             ".error",
             "[data-testid='login-error-message']", 
             "p[role='alert']",
-            "div[role='alert']"
+            "div[role='alert']",
+            "span[role='alert']"
         ]
         
         for selector in error_selectors:
             try:
                 error_elem = self.driver.find_element(By.CSS_SELECTOR, selector)
                 if error_elem.is_displayed() and error_elem.text:
-                    return error_elem.text
+                    error_text = error_elem.text.lower()
+                    # Only return error if it's actually about login
+                    if any(word in error_text for word in ['incorrect', 'wrong', 'invalid', 'password', 'username', 'login', 'sorry']):
+                        return error_elem.text
             except NoSuchElementException:
                 continue
         
-        # Check for generic error text
+        # Check for specific error messages in page text, but be more careful
         try:
             page_text = self.driver.page_source.lower()
-            if "incorrect" in page_text or "wrong" in page_text:
+            
+            # Check for actual login error messages (not just the word appearing anywhere)
+            if "sorry, your password was incorrect" in page_text:
                 return "Incorrect username or password"
-            elif "too many" in page_text:
+            elif "the username you entered doesn't belong to an account" in page_text:
+                return "Username not found"
+            elif "we couldn't connect to instagram" in page_text:
+                return "Connection error"
+            elif "too many failed attempts" in page_text or "too many login attempts" in page_text:
                 return "Too many login attempts"
+            elif "please wait a few minutes" in page_text:
+                return "Rate limited - please wait"
+                
+            # Don't return error just because these words appear somewhere on the page
+            # (they might be in language selection or other unrelated content)
         except:
             pass
         
@@ -1069,16 +1552,76 @@ class InstagramScraper:
         try:
             self.logger.info("🔐 Two-factor authentication detected")
             print("\n" + "="*60)
-            print("🔐 INSTAGRAM TWO-FACTOR AUTHENTICATION REQUIRED")
+            print("🔐 INSTAGRAM OTP/2FA VERIFICATION REQUIRED")
             print("="*60)
-            print("Instagram is asking for a 2FA code.")
-            print("Please check your phone/email for the authentication code.")
-            print("\nThe browser window is open and waiting for you to:")
-            print("1. Enter the 2FA code in the Instagram page")
-            print("2. Click 'Confirm' or 'Submit'")
-            print("3. Complete any additional prompts")
-            print("\nThe script will automatically detect when you're logged in.")
-            print("="*60)
+            print("Instagram sent an OTP to your WhatsApp/SMS/Email")
+            print()
+            
+            # Since we're in headless mode, ask user for the code
+            otp_code = input("📱 Please enter the OTP code you received: ").strip()
+            
+            if not otp_code:
+                print("❌ No code entered")
+                return False
+            
+            # Find OTP input field
+            otp_selectors = [
+                "input[name='verificationCode']",
+                "input[aria-label*='code']",
+                "input[placeholder*='code']",
+                "input[type='tel']",  # Often OTP fields are tel type
+                "input[type='number']",
+                "input[maxlength='6']",  # Common for 6-digit OTP
+                "input[maxlength='8']"   # Some OTPs are 8 digits
+            ]
+            
+            otp_input = None
+            for selector in otp_selectors:
+                try:
+                    otp_input = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    if otp_input.is_displayed():
+                        self.logger.info(f"Found OTP input with selector: {selector}")
+                        break
+                except:
+                    continue
+            
+            if not otp_input:
+                print("❌ Could not find OTP input field")
+                self.driver.save_screenshot("otp_field_not_found.png")
+                return False
+            
+            # Enter the OTP
+            otp_input.clear()
+            otp_input.send_keys(otp_code)
+            self.logger.info(f"Entered OTP: {otp_code[:2]}****")
+            
+            # Find and click submit button
+            submit_selectors = [
+                "button[type='submit']",
+                "button:contains('Confirm')",
+                "button:contains('Submit')",
+                "button:contains('Verify')",
+                "button:contains('Next')"
+            ]
+            
+            for selector in submit_selectors:
+                try:
+                    if "contains" in selector:
+                        # Use XPath for text content
+                        text = selector.split("'")[1]
+                        button = self.driver.find_element(By.XPATH, f"//button[contains(text(), '{text}')]")
+                    else:
+                        button = self.driver.find_element(By.CSS_SELECTOR, selector)
+                    
+                    if button.is_displayed() and button.is_enabled():
+                        button.click()
+                        self.logger.info("Clicked OTP submit button")
+                        break
+                except:
+                    continue
+            
+            print("⏳ Verifying OTP...")
+            self._random_delay(3, 5)
             
             # Wait for user to complete 2FA manually
             max_wait_time = 300  # 5 minutes
@@ -1226,22 +1769,31 @@ class InstagramScraper:
         try:
             current_url = self.driver.current_url
             
-            # Check if we hit a login wall
-            login_wall_indicators = [
-                "accounts/login",
-                "Sign up for Instagram",
-                "Keep watching in the app",
-                self.config.instagram.selectors.signup_prompt,
-                self.config.instagram.selectors.app_download
-            ]
+            # First check if we're already logged in - if so, no need to bypass anything
+            if self._is_logged_in():
+                self.logger.debug("Already logged in, no login wall to bypass")
+                return True
             
-            page_source = self.driver.page_source.lower()
-            url_lower = current_url.lower()
-            
-            login_wall_detected = any(
-                indicator.lower() in page_source or indicator.lower() in url_lower 
-                for indicator in login_wall_indicators
-            )
+            # Check if we're actually on the login page (URL check only)
+            if "accounts/login" in current_url.lower():
+                self.logger.warning("🚧 On login page - login wall detected")
+                login_wall_detected = True
+            else:
+                # Only check page source for specific login wall text, not URLs
+                login_wall_indicators = [
+                    "Sign up to see photos and videos",
+                    "Keep watching in the app",
+                    "Sign up for Instagram",
+                    self.config.instagram.selectors.signup_prompt,
+                    self.config.instagram.selectors.app_download
+                ]
+                
+                page_source = self.driver.page_source.lower()
+                
+                login_wall_detected = any(
+                    indicator.lower() in page_source
+                    for indicator in login_wall_indicators if indicator
+                )
             
             if login_wall_detected:
                 self.logger.warning("🚧 Login wall detected - attempting bypass")
@@ -1995,10 +2547,83 @@ class InstagramScraper:
         try:
             print("🔍 Looking for first reel to click...")
             
+            # First, try to close any blocking dialogs/modals
+            print("🔍 Checking for blocking modals/dialogs...")
+            try:
+                # Try to find and close any "Not Now" or "Close" buttons
+                close_buttons = self.driver.find_elements(By.XPATH, "//button[contains(text(), 'Not Now') or contains(text(), 'Close') or contains(text(), 'Dismiss')]")
+                for btn in close_buttons:
+                    if btn.is_displayed():
+                        btn.click()
+                        print("✅ Closed a blocking dialog")
+                        self._random_delay(0.5, 1)
+                        break
+            except:
+                pass
+            
+            # Check for and remove any overlay divs
+            try:
+                self.driver.execute_script("""
+                    // Remove any full-screen overlays that might be blocking clicks
+                    var overlays = document.querySelectorAll('div[style*="position: fixed"], div[style*="position: absolute"]');
+                    overlays.forEach(function(el) {
+                        if (el.style.zIndex > 1000 || el.classList.contains('overlay')) {
+                            el.remove();
+                            console.log('Removed potential blocking overlay');
+                        }
+                    });
+                """)
+            except:
+                pass
+            
             # Scroll to see reels
             print("📜 Scrolling to find reels...")
             self.driver.execute_script("window.scrollTo(0, 500);")
             self._random_delay(0.5, 0.5)
+            
+            # Wait for reels to be fully loaded and clickable
+            print("⏳ Waiting for reels to be interactive...")
+            
+            # First wait for reel links to exist
+            try:
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='/reel/']"))
+                )
+            except TimeoutException:
+                print("⚠️ No reel links found on page")
+                return None
+            
+            # Wait for Instagram's JavaScript to fully load
+            # The key indicator is when ALL reels have loaded (usually 24+ instead of initial 12)
+            print("⏳ Waiting for Instagram JavaScript to initialize...")
+            
+            # Wait for the page to stabilize with all reels loaded
+            reels_count = 0
+            stable_count = 0
+            max_wait = 10  # Maximum 10 seconds
+            
+            for i in range(max_wait):
+                current_count = len(self.driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']"))
+                print(f"   Found {current_count} reels (attempt {i+1}/{max_wait})")
+                
+                # Check if count is stable (same for 2 checks in a row)
+                if current_count == reels_count and current_count >= 24:
+                    stable_count += 1
+                    if stable_count >= 2:
+                        print(f"✅ Page stabilized with {current_count} reels loaded")
+                        break
+                else:
+                    stable_count = 0
+                    reels_count = current_count
+                
+                self._random_delay(1, 1.5)
+            
+            # Extra wait after stabilization for click handlers to attach
+            if reels_count >= 24:
+                print("⏳ Waiting for click handlers to attach...")
+                self._random_delay(2, 3)
+            else:
+                print(f"⚠️ Only {reels_count} reels loaded, may not be fully ready")
             
             # Try broader selectors first
             reel_selectors = [
@@ -2013,19 +2638,126 @@ class InstagramScraper:
                     elements = self.driver.find_elements(By.CSS_SELECTOR, selector)
                     print(f"🔍 Selector '{selector}' found {len(elements)} elements")
                     
-                    for element in elements:
+                    # Find the element closest to x=652 (the reliable first reel position)
+                    # This should be the first reel in the second column
+                    target_x = 652
+                    sorted_elements = sorted(elements, key=lambda e: (
+                        abs(e.location['x'] - target_x),  # First priority: closest to x=652
+                        e.location['y']  # Second priority: higher up on page (lower y value)
+                    ))
+                    
+                    if sorted_elements:
+                        first_element = sorted_elements[0]
+                        print(f"📍 Selected reel at position x={first_element.location['x']}, y={first_element.location['y']}")
+                        
+                        # Only process the best candidate
+                        elements_to_try = [first_element]
+                    else:
+                        elements_to_try = elements
+                    
+                    for element in elements_to_try:
                         href = element.get_attribute('href')
                         if href and '/reel/' in href:
                             clean_url = href.split('?')[0]
                             print(f"✅ Found reel URL: {clean_url}")
-                            print("👆 Clicking on the reel...")
                             
-                            # Click it
-                            self.driver.execute_script("arguments[0].click();", element)
-                            self._random_delay(1, 1.5)
+                            # Debug: Check element properties before clicking
+                            print(f"📊 Element details:")
+                            print(f"   - Tag: {element.tag_name}")
+                            print(f"   - Displayed: {element.is_displayed()}")
+                            print(f"   - Enabled: {element.is_enabled()}")
+                            print(f"   - Size: {element.size}")
+                            print(f"   - Location: {element.location}")
+                            
+                            # Check if element is covered by another element
+                            try:
+                                element_at_location = self.driver.execute_script(
+                                    "return document.elementFromPoint(arguments[0], arguments[1]);",
+                                    element.location['x'] + element.size['width']/2,
+                                    element.location['y'] + element.size['height']/2
+                                )
+                                if element_at_location:
+                                    print(f"   - Element at click point: {element_at_location.tag_name if hasattr(element_at_location, 'tag_name') else 'unknown'}")
+                            except:
+                                pass
+                            
+                            print("👆 Attempting to click on the reel...")
+                            
+                            # If there's a div covering it, try to find the actual clickable element
+                            # Instagram often has nested elements like: <a><div><div><img></div></div></a>
+                            try:
+                                # First, try to find an img or video thumbnail inside the link
+                                clickable_element = element.find_element(By.TAG_NAME, "img")
+                                print("   Found img element inside link, clicking that instead")
+                            except:
+                                clickable_element = element  # Fallback to the link itself
+                            
+                            # Try multiple click strategies
+                            click_successful = False
+                            
+                            # Strategy 1: Click the image/thumbnail directly
+                            try:
+                                clickable_element.click()
+                                print("✅ Clicked using regular click on inner element")
+                                click_successful = True
+                            except Exception as e:
+                                print(f"❌ Regular click on inner element failed: {str(e)[:100]}")
+                            
+                            # Strategy 2: JavaScript click on the link
+                            if not click_successful:
+                                try:
+                                    self.driver.execute_script("arguments[0].click();", element)
+                                    print("✅ Clicked using JavaScript click on link")
+                                    click_successful = True
+                                except Exception as e:
+                                    print(f"❌ JavaScript click failed: {str(e)[:100]}")
+                            
+                            # Strategy 3: Scroll element into center view and try again
+                            if not click_successful:
+                                try:
+                                    print("📍 Scrolling element to center of viewport and retrying...")
+                                    self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+                                    self._random_delay(0.5, 1)
+                                    element.click()
+                                    print("✅ Clicked after scrolling to center")
+                                    click_successful = True
+                                except Exception as e:
+                                    print(f"❌ Click after scroll failed: {str(e)[:100]}")
+                            
+                            if not click_successful:
+                                print("❌ All click strategies failed - cannot open reel modal")
+                            
+                            # Wait for the reel modal to open
+                            print("⏳ Waiting for reel to open...")
+                            try:
+                                # Wait for either URL change or video element to appear
+                                WebDriverWait(self.driver, 5).until(
+                                    lambda driver: (
+                                        '/reel/' in driver.current_url or
+                                        driver.find_elements(By.TAG_NAME, "video")
+                                    )
+                                )
+                            except TimeoutException:
+                                print("⚠️ Reel didn't open within timeout")
+                                # Debug: Check what's on the page now
+                                print("🔍 Debugging why reel didn't open:")
+                                print(f"   - Current URL: {self.driver.current_url}")
+                                print(f"   - Video elements found: {len(self.driver.find_elements(By.TAG_NAME, 'video'))}")
+                                dialog_selector = '[role="dialog"]'
+                                print(f"   - Dialog/Modal elements: {len(self.driver.find_elements(By.CSS_SELECTOR, dialog_selector))}")
+                                # Check if we're still on the same page
+                                current_reels = self.driver.find_elements(By.CSS_SELECTOR, "a[href*='/reel/']")
+                                print(f"   - Reel links still visible: {len(current_reels)}")
                             
                             print(f"📍 Current URL after click: {self.driver.current_url}")
-                            return clean_url
+                            
+                            # Verify modal opened
+                            if '/reel/' in self.driver.current_url:
+                                print("✅ Reel opened successfully")
+                                return clean_url
+                            else:
+                                print("⚠️ Reel didn't open properly, but continuing anyway")
+                                return clean_url
                             
                 except Exception as e:
                     print(f"⚠️  Error with selector {selector}: {str(e)}")

@@ -64,6 +64,8 @@ class HybridRAGSystem:
         
         # Status tracking - E5 only
         self.e5_available = self.e5_detector.available
+        self.claude_available = True
+        self.ollama_available = True
         
         self._print_status()
     
@@ -93,7 +95,7 @@ class HybridRAGSystem:
             "force_claude_keywords": ["complex", "nuanced", "detailed analysis"],
             
             # Monitoring
-            "log_all_decisions": True,
+            "log_all_decisions": False,
             "performance_window_hours": 24
         }
         
