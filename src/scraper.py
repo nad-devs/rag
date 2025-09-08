@@ -2646,6 +2646,8 @@ class InstagramScraper:
                         e.location['y']  # Second priority: higher up on page (lower y value)
                     ))
                     
+                    # sorted() always returns a list, even if empty
+                    # Always take the first element closest to x=652
                     if sorted_elements:
                         first_element = sorted_elements[0]
                         print(f"📍 Selected reel at position x={first_element.location['x']}, y={first_element.location['y']}")

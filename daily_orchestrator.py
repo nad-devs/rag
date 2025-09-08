@@ -240,6 +240,40 @@ class DailyOrchestrator:
             print(f"❌ Enhancement failed: {e}")
             return {'success': False, 'error': str(e)}
     
+    def add_dates_to_files(self, file_paths: list):
+        """Add dates to enhanced files using existing fetch_instagram_dates logic"""
+        print(f"📅 Adding dates to {len(file_paths)} newly enhanced files...")
+        
+        # Import the existing functions
+        sys.path.append(str(Path(self.base_path)))
+        from fetch_instagram_dates import extract_date_from_page, setup_driver
+        import json
+        import time
+        
+        driver = setup_driver()
+        updated_count = 0
+        
+        try:
+            for file_path in file_paths:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                
+                # Get URL and fetch date
+                url = data.get('source_metadata', {}).get('url')
+                if url and not data.get('post_date'):
+                    date = extract_date_from_page(driver, url)
+                    if date:
+                        data['post_date'] = date
+                        with open(file_path, 'w') as f:
+                            json.dump(data, f, indent=2, ensure_ascii=False)
+                        updated_count += 1
+                
+                time.sleep(1)  # Small delay between requests
+        finally:
+            driver.quit()
+        
+        print(f"✅ Added dates to {updated_count} files")
+    
     def step_3_update_vectors(self, enhanced_files: list = None) -> dict:
         """Step 3: Update vector database with enhanced files using incremental updates"""
         print("\n" + "="*60)
@@ -438,13 +472,18 @@ class DailyOrchestrator:
         files_to_process = detection_result['report']['files_to_process']
         enhancement_result = self.step_2_enhance_files(files_to_process)
         
-        # Step 3: Update vectors with the specific files that were just enhanced
+        # Step 2.5: Add dates to enhanced files
         enhanced_file_paths = []
         if enhancement_result.get('success') and 'results' in enhancement_result:
             # Get the paths of successfully enhanced files
             successful_results = enhancement_result['results'].get('successful', [])
             enhanced_file_paths = [result.get('output_file') for result in successful_results if result.get('output_file')]
+            
+            # Add dates to these files
+            if enhanced_file_paths:
+                self.add_dates_to_files(enhanced_file_paths)
         
+        # Step 3: Update vectors with the specific files that were just enhanced
         vector_result = self.step_3_update_vectors(enhanced_file_paths)
         
         # Print summary and return exit code

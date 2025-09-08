@@ -92,7 +92,6 @@ class ClaudeRanker:
                 'content_category': metadata.get('content_category', 'unknown'),
                 'key_takeaways': metadata.get('key_takeaways', [])[:3],  # First 3 takeaways
                 'natural_questions': metadata.get('natural_questions', [])[:2],  # First 2 questions
-                'difficulty_level': metadata.get('difficulty_level', 'unknown'),
                 'content_length': len(content_text)
             }
             doc_summaries.append(summary)
@@ -169,7 +168,7 @@ DOCUMENTS TO SCORE:
 Document {i+1}:
 Doc ID: {doc['doc_id']}
 Main Lesson: {doc['main_lesson']}
-Category: {doc['content_category']} | Difficulty: {doc['difficulty_level']}
+Category: {doc['content_category']}
 Content Preview: {doc['content_preview']}
 Key Takeaways: {', '.join(doc['key_takeaways']) if doc['key_takeaways'] else 'None listed'}
 Natural Questions: {', '.join(doc['natural_questions']) if doc['natural_questions'] else 'None listed'}

@@ -120,6 +120,41 @@ class VideoTranscriber:
             'Upgrade-Insecure-Requests': '1',
         })
     
+    def _get_ytdlp_path(self) -> Optional[str]:
+        """Get the full path to yt-dlp executable (for cron job compatibility)."""
+        try:
+            import shutil
+            
+            # First try to find yt-dlp in PATH
+            yt_dlp_path = shutil.which('yt-dlp')
+            if yt_dlp_path:
+                self.logger.debug(f"Found yt-dlp at: {yt_dlp_path}")
+                return yt_dlp_path
+            
+            # Common installation paths for yt-dlp
+            common_paths = [
+                '/usr/local/bin/yt-dlp',
+                '/usr/bin/yt-dlp',
+                '/home/arjun/.local/bin/yt-dlp',
+                '/opt/homebrew/bin/yt-dlp',  # macOS with Homebrew
+                '~/bin/yt-dlp',
+                './yt-dlp'  # Local installation
+            ]
+            
+            for path in common_paths:
+                expanded_path = os.path.expanduser(path)
+                if os.path.isfile(expanded_path) and os.access(expanded_path, os.X_OK):
+                    self.logger.debug(f"Found yt-dlp at: {expanded_path}")
+                    return expanded_path
+            
+            self.logger.error("yt-dlp not found in PATH or common locations")
+            self.logger.info("Install yt-dlp with: pip install yt-dlp or sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && sudo chmod a+rx /usr/local/bin/yt-dlp")
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error finding yt-dlp: {e}")
+            return None
+    
     def _export_cookies_for_ytdlp(self) -> str:
         """Export cookies from current Selenium session to Netscape format for yt-dlp."""
         try:

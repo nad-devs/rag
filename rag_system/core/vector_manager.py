@@ -185,26 +185,13 @@ class QdrantVectorManager:
             'url': source['url'],
             
             # Learning metadata
-            'main_lesson': metadata['main_lesson'],
-            'content_category': metadata['content_category'],
-            'difficulty_level': metadata['difficulty_level'], 
-            'time_investment': metadata['time_investment'],
+            'main_lesson': metadata.get('main_lesson', ''),
+            'content_category': metadata.get('content_category', 'unknown'),
             
             # Series information
-            'is_part_of_series': metadata['is_part_of_series'],
+            'is_part_of_series': metadata.get('is_part_of_series', False),
             'series_title': metadata.get('series_title', ''),
             'part_number': metadata.get('part_number', 0),
-            'series_context': metadata.get('series_context', ''),
-            
-            # Temporal data
-            'temporal_relevance': metadata['temporal_relevance'],
-            'content_date_context': metadata['content_date_context'],
-            'time_sensitive_topics': metadata.get('time_sensitive_topics', []),
-            
-            # Content quality
-            'personal_experience': metadata['personal_experience'],
-            'controversy_level': metadata['controversy_level'],
-            'discussion_potential': metadata['discussion_potential'],
             
             # Source metadata
             'duration': source.get('duration', 0),
@@ -316,13 +303,9 @@ class QdrantVectorManager:
                     'main_lesson': result.payload['main_lesson'],
                     'content_category': result.payload['content_category'],
                     'series_info': {
-                        'is_series': result.payload['is_part_of_series'],
+                        'is_series': result.payload.get('is_part_of_series', False),
                         'series_title': result.payload.get('series_title', ''),
                         'part_number': result.payload.get('part_number', 0)
-                    },
-                    'temporal_info': {
-                        'relevance': result.payload['temporal_relevance'],
-                        'date_context': result.payload['content_date_context']
                     },
                     'metadata': result.payload
                 })
@@ -372,12 +355,7 @@ class QdrantVectorManager:
                             'specific_examples': result['metadata'].get('specific_examples', []),
                             'is_part_of_series': result['metadata'].get('is_part_of_series', False),
                             'series_title': result['metadata'].get('series_title', ''),
-                            'part_number': result['metadata'].get('part_number', 0),
-                            'series_context': result['metadata'].get('series_context', ''),
-                            'temporal_relevance': result['metadata'].get('temporal_relevance', ''),
-                            'time_sensitive_topics': result['metadata'].get('time_sensitive_topics', []),
-                            'difficulty_level': result['metadata'].get('difficulty_level', ''),
-                            'time_investment': result['metadata'].get('time_investment', '')
+                            'part_number': result['metadata'].get('part_number', 0)
                         },
                         'content_text': result['metadata'].get('content_text', ''),
                         'source_metadata': {

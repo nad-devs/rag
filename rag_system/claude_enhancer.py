@@ -94,19 +94,9 @@ OUTPUT FORMAT - Return ONLY valid JSON with this exact structure:
     "key_takeaways": ["3-5 specific bullet points of key information learned"],
     "actionable_insights": ["2-3 specific actions viewers can take based on this content"],
     "content_category": "Choose from: technical_tutorial|industry_opinion|career_advice|tool_review|comparison|implementation_guide|quick_tip",
-    "difficulty_level": "beginner|intermediate|advanced",
-    "time_investment": "quick_tip|short_lesson|comprehensive_guide",
     "is_part_of_series": true/false,
     "series_title": "Title if part of series, empty string if not",
     "part_number": 0,
-    "total_parts_detected": 0,
-    "series_context": "Context about where this fits in the series, empty if not series",
-    "continuation_phrases": ["phrases that indicate this continues from/to other content"],
-    "content_date_context": "current|timeless|dated",
-    "temporal_relevance": "current|timeless|historical",
-    "time_sensitive_topics": ["topics that may become outdated"],
-    "update_indicators": ["phrases suggesting this needs updates"],
-    "version_context": "Information about versions/updates mentioned",
     "technologies_mentioned": [
       {{
         "name": "Technology name",
@@ -121,62 +111,28 @@ OUTPUT FORMAT - Return ONLY valid JSON with this exact structure:
         "use_case": "How it's used or recommended"
       }}
     ],
-    "companies_discussed": ["List of companies mentioned"],
     "natural_questions": ["3-5 questions users would naturally ask about this topic"],
     "search_scenarios": ["3-5 scenarios when someone would search for this content"],
     "related_topics": ["3-5 related topics for exploration"],
     "prerequisites": ["Knowledge needed to understand this content"],
-    "next_steps": ["What to learn/do after this content"],
     "practical_applications": ["Real-world applications of this knowledge"],
-    "credibility_indicators": ["What makes this content credible"],
-    "personal_experience": true/false,
-    "specific_examples": ["Concrete examples provided in the content"],
-    "controversy_level": "low|medium|high",
-    "shareability": "highly_shareable|moderately_shareable|niche_audience",
-    "discussion_potential": "high|medium|low"
+    "specific_examples": ["Concrete examples provided in the content"]
   }},
-  "content_text": "The full transcribed text from the video",
-  "user_experience": {{
-    "learning_path": {{
-      "current_level": "beginner|intermediate|advanced",
-      "time_to_consume": "quick_tip|short_lesson|comprehensive_guide", 
-      "prerequisites_met": true/false,
-      "next_steps_available": true/false
-    }},
-    "discoverability": {{
-      "search_friendly": true/false,
-      "category_clear": true/false,
-      "actionable_content": true/false
-    }},
-    "engagement_metrics": {{
-      "discussion_potential": "high|medium|low",
-      "shareability": "highly_shareable|moderately_shareable|niche_audience",
-      "controversy_level": "low|medium|high"
-    }},
-    "knowledge_value": {{
-      "personal_experience": true/false,
-      "specific_examples": number_of_examples,
-      "credibility_score": 1-5
-    }}
-  }}
+  "content_text": "The full transcribed text from the video"
 }}
 
 ANALYSIS GUIDELINES:
 1. Extract learning value from conversational, informal content
 2. Focus on practical, actionable insights
-3. Consider the educational progression and skill level
-4. Identify technical concepts and tools accurately
-5. Generate search-friendly questions and scenarios
-6. Assess the temporal relevance and update needs
-7. Determine appropriate difficulty and prerequisites
-8. Extract technology sentiments and recommendations accurately
-9. SERIES DETECTION: Look for multi-part content indicators:
+3. Identify technical concepts and tools accurately
+4. Generate search-friendly questions and scenarios
+5. Determine appropriate prerequisites for understanding the content
+6. Extract technology sentiments and recommendations accurately
+7. SERIES DETECTION: Look for multi-part content indicators:
    - Numbered patterns: "Number one", "Number two", "Part 1", "Part 2", etc.
    - Series titles in content like "Critical [topic] tips", "Top [number] reasons", etc.
-   - Continuation phrases: "next episode", "in the next video", "coming up"
+   - Phrases like "next episode", "in the next video", "coming up"
    - If series detected: set is_part_of_series=true, extract series_title, determine part_number
-   - Count total parts when multiple numbers mentioned or obvious from context
-   - Use continuation_phrases to capture linking words between episodes
 
 IMPORTANT: Return ONLY the JSON structure. No additional text or explanation."""
 
@@ -307,7 +263,7 @@ IMPORTANT: Return ONLY the JSON structure. No additional text or explanation."""
         """Validate that the enhancement data has required structure"""
         try:
             # Check for required top-level keys
-            required_keys = ['learning_metadata', 'content_text', 'user_experience']
+            required_keys = ['learning_metadata', 'content_text']
             if not all(key in data for key in required_keys):
                 return False
             

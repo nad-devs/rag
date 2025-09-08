@@ -75,6 +75,7 @@ class RAGExtractionResult:
     follow_up_suggestions: List[str]
     documents_used: List[str]
     extraction_reasoning: str  # Why GPT-4 chose this answer
+    temporal_info: Optional[str] = None  # Track opinion evolution if detected
 
 # Removed QueryIntent enum - GPT-4 handles intent naturally in the prompt
 
