@@ -249,15 +249,15 @@ class ClaudeRAGEngine:
         
         # Vector type debug removed for cleaner output
         
+        # Fields are directly in mention from DocumentSearcher, not in metadata
         # Use the fields that were actually stored in this vector's payload
         content_parts = []
         
         # Map actual collection names to focused content extraction
         if vector_type == 'instagram_content_vectors':
-            # Primary content: main lesson, content, key takeaways, actionable insights
+            # Primary content: main lesson, key takeaways, actionable insights (no redundant full text)
             content_parts = [
                 mention.get('main_lesson', ''),
-                mention.get('content_text', ''),
                 ' '.join(mention.get('key_takeaways', [])),
                 ' '.join(mention.get('actionable_insights', []))
             ]
@@ -277,15 +277,15 @@ class ClaudeRAGEngine:
                 else:
                     tech_parts.append(str(tool))
                     
-            content_parts = tech_parts + [mention.get('main_lesson', ''), mention.get('content_text', '')]  # INCLUDE FULL CONTENT
+            content_parts = tech_parts + [mention.get('main_lesson', '')]  # Removed redundant content_text
             
         elif vector_type == 'instagram_qa_vectors':
             # Q&A content: natural questions, search scenarios, main lesson + FULL CONTENT for safety
             content_parts = [
                 ' '.join(mention.get('natural_questions', [])),
                 ' '.join(mention.get('search_scenarios', [])),
-                mention.get('main_lesson', ''),
-                mention.get('content_text', '')  # INCLUDE FULL CONTENT to avoid losing key details
+                mention.get('main_lesson', '')
+                # Removed redundant content_text - all key details in structured fields
             ]
             
         elif vector_type == 'instagram_context_vectors':
@@ -295,8 +295,8 @@ class ClaudeRAGEngine:
                 ' '.join(mention.get('practical_applications', [])),
                 ' '.join(mention.get('prerequisites', [])),
                 ' '.join(mention.get('related_topics', [])),
-                mention.get('main_lesson', ''),
-                mention.get('content_text', '')  # INCLUDE FULL CONTENT to avoid losing key details
+                mention.get('main_lesson', '')
+                # Removed redundant content_text - all key details in structured fields
             ]
             
         # Legacy support for old collection names
@@ -346,7 +346,8 @@ class ClaudeRAGEngine:
         # Fallback to content_text if no vector-specific content found
         if not final_content.strip():
             final_content = mention.get('content_text', '')
-            print(f"   ⚠️ No vector-specific content found, using fallback")
+            if final_content:
+                print(f"   ⚠️ No vector-specific content found, using fallback")
         
         return final_content
     
@@ -825,8 +826,19 @@ class ClaudeRAGEngine:
                 combined_doc_content = mentions_for_doc[0].get('content_text', '')
                 print(f"   ⚠️ No vector-specific content, using full content as fallback")
             
-            # Add document ID header for source attribution
-            attributed_content = f"[DOCUMENT {doc_id}]:\n{combined_doc_content}"
+            # Extract post_date for temporal context
+            post_date = None
+            for mention in mentions_for_doc:
+                # Check for post_date in the mention (from Qdrant payload)
+                if mention.get('post_date'):
+                    post_date = mention.get('post_date')
+                    break
+            
+            # Add document ID header with date for temporal awareness
+            if post_date:
+                attributed_content = f"[DOCUMENT {doc_id} - Posted: {post_date}]:\n{combined_doc_content}"
+            else:
+                attributed_content = f"[DOCUMENT {doc_id}]:\n{combined_doc_content}"
             all_content.append(attributed_content)
             doc_ids.append(doc_id)
             
@@ -1124,6 +1136,8 @@ DEPTH & INSIGHT:
 - Highlight Ed's unique perspectives and reasoning
 - Address potential follow-up questions proactively
 - Provide context for recommendations
+- If you notice Ed's opinion has evolved over time (based on post dates), mention it naturally like "Initially Ed believed X (early dates), but has since evolved to Y (recent dates)"
+- When there's a clear temporal pattern in opinions, acknowledge the evolution without overemphasizing it
 
 CITATION INTEGRATION:
 - Place citations [edhonour_ID] at the END of each sentence that uses that source
