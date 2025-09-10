@@ -244,26 +244,22 @@ class ClaudeRAGEngine:
 
     
     def _extract_vector_specific_content(self, mention: Dict[str, Any]) -> str:
-        """Extract content directly from vector payload (no reconstruction needed)"""
+        """Extract content directly from vector payload (3-vector strategy)"""
         vector_type = mention.get('vector_type', 'instagram_content_vectors')
         
-        # Vector type debug removed for cleaner output
-        
-        # Fields are directly in mention from DocumentSearcher, not in metadata
-        # Use the fields that were actually stored in this vector's payload
+        # Fields are directly in mention from DocumentSearcher
         content_parts = []
         
-        # Map actual collection names to focused content extraction
+        # Map to 3-VECTOR STRATEGY
         if vector_type == 'instagram_content_vectors':
-            # Primary content: main lesson, key takeaways, actionable insights (no redundant full text)
+            # SEMANTIC vector: main lesson, key takeaways for general queries
             content_parts = [
                 mention.get('main_lesson', ''),
-                ' '.join(mention.get('key_takeaways', [])),
-                ' '.join(mention.get('actionable_insights', []))
+                ' '.join(mention.get('key_takeaways', []))
             ]
             
         elif vector_type == 'instagram_tech_vectors':
-            # Technical content: technologies, tools, and platforms + FULL CONTENT
+            # TECHNICAL vector: technologies, tools, examples for tech queries
             tech_parts = []
             for tech in mention.get('technologies_mentioned', []):
                 if isinstance(tech, dict):
@@ -276,34 +272,34 @@ class ClaudeRAGEngine:
                     tech_parts.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
                 else:
                     tech_parts.append(str(tool))
-                    
-            content_parts = tech_parts + [mention.get('main_lesson', '')]  # Removed redundant content_text
             
-        elif vector_type == 'instagram_qa_vectors':
-            # Q&A content: natural questions, search scenarios, main lesson + FULL CONTENT for safety
+            # Add specific examples to technical content
+            examples = mention.get('specific_examples', [])
+            if examples:
+                tech_parts.extend(examples)
+                    
+            content_parts = tech_parts
+            
+        elif vector_type == 'instagram_action_vectors':
+            # ACTION vector: actionable insights, practical applications for how-to queries
             content_parts = [
-                ' '.join(mention.get('natural_questions', [])),
-                ' '.join(mention.get('search_scenarios', [])),
-                mention.get('main_lesson', '')
-                # Removed redundant content_text - all key details in structured fields
+                ' '.join(mention.get('actionable_insights', [])),
+                ' '.join(mention.get('practical_applications', []))
             ]
             
+        # Handle legacy context vectors (map to ACTION vectors)
         elif vector_type == 'instagram_context_vectors':
-            # Contextual/practical content: examples, applications, prerequisites + FULL CONTENT
+            # Map old context vectors to ACTION vector logic
             content_parts = [
                 ' '.join(mention.get('specific_examples', [])),
                 ' '.join(mention.get('practical_applications', [])),
-                ' '.join(mention.get('prerequisites', [])),
-                ' '.join(mention.get('related_topics', [])),
-                mention.get('main_lesson', '')
-                # Removed redundant content_text - all key details in structured fields
+                ' '.join(mention.get('actionable_insights', []))
             ]
             
         # Legacy support for old collection names
         elif vector_type == 'primary':
             content_parts = [
                 mention.get('main_lesson', ''),
-                mention.get('content_text', ''),
                 ' '.join(mention.get('key_takeaways', [])),
                 ' '.join(mention.get('actionable_insights', []))
             ]
@@ -343,11 +339,11 @@ class ClaudeRAGEngine:
         # Combine all non-empty parts
         final_content = ' '.join(filter(None, content_parts))
         
-        # Fallback to content_text if no vector-specific content found
+        # Fallback to main_lesson if no vector-specific content found
         if not final_content.strip():
-            final_content = mention.get('content_text', '')
+            final_content = mention.get('main_lesson', '')
             if final_content:
-                print(f"   ⚠️ No vector-specific content found, using fallback")
+                print(f"   ⚠️ No vector-specific content found, using main_lesson fallback")
         
         return final_content
     
@@ -821,10 +817,20 @@ class ClaudeRAGEngine:
             # Combine all vector-specific content for this document
             combined_doc_content = ' '.join(doc_vector_contents)
             
-            # If no vector-specific content, fall back to full content
+            # If no vector-specific content, construct from structured fields
             if not combined_doc_content.strip() and mentions_for_doc:
-                combined_doc_content = mentions_for_doc[0].get('content_text', '')
-                print(f"   ⚠️ No vector-specific content, using full content as fallback")
+                # Build content from available structured fields
+                fallback_parts = []
+                first_mention = mentions_for_doc[0]
+                if first_mention.get('main_lesson'):
+                    fallback_parts.append(first_mention.get('main_lesson'))
+                if first_mention.get('key_takeaways'):
+                    fallback_parts.extend(first_mention.get('key_takeaways', []))
+                if first_mention.get('actionable_insights'):
+                    fallback_parts.extend(first_mention.get('actionable_insights', []))
+                combined_doc_content = ' '.join(fallback_parts)
+                if combined_doc_content:
+                    print(f"   ⚠️ No vector-specific content, using structured fields as fallback")
             
             # Extract post_date for temporal context
             post_date = None
@@ -843,7 +849,6 @@ class ClaudeRAGEngine:
             doc_ids.append(doc_id)
             
             # Debug: show aggregation results
-            original_length = len(mentions_for_doc[0].get('content_text', '')) if mentions_for_doc else 0
             final_length = len(combined_doc_content)
             # Content aggregation completed for doc: {doc_id}
             

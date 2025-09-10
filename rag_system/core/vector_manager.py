@@ -1,12 +1,13 @@
 """
 Qdrant Vector Database Manager for Instagram Learning Content
-Implements 4-vector strategy: Content, Q&A, Tech, Context
+Implements 3-vector strategy: Semantic, Technical, Action
 """
 
 import os
 import json
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
+import torch
 import qdrant_client
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, Range, MatchValue
@@ -50,18 +51,27 @@ class QdrantVectorManager:
                 api_key=self.qdrant_api_key
             )
         
-        # Initialize embedding model (force CPU to avoid CUDA memory issues)
+        # Initialize embedding model (auto-detect GPU if available)
         print(f"🤖 Loading embedding model: {embedding_model}")
-        self.embedding_model = SentenceTransformer(embedding_model, device='cpu')
-        self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
-        print("💡 Using CPU for embeddings to avoid CUDA memory issues")
         
-        # Collection names for 4-vector strategy
+        # Check for GPU availability
+        if torch.cuda.is_available():
+            device = 'cuda'
+            print(f"🚀 GPU detected! Using CUDA device: {torch.cuda.get_device_name(0)}")
+            print(f"   GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
+        else:
+            device = 'cpu'
+            print("💻 No GPU detected, using CPU for embeddings")
+        
+        self.embedding_model = SentenceTransformer(embedding_model, device=device)
+        self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+        print(f"✅ Model loaded on {device.upper()}")
+        
+        # Collection names for 3-vector strategy
         self.collections = {
-            'content': 'instagram_content_vectors',
-            'qa': 'instagram_qa_vectors', 
-            'tech': 'instagram_tech_vectors',
-            'context': 'instagram_context_vectors'
+            'content': 'instagram_content_vectors',    # SEMANTIC vector
+            'tech': 'instagram_tech_vectors',         # TECHNICAL vector
+            'action': 'instagram_action_vectors'      # ACTION vector
         }
         
         print(f"✅ Qdrant Vector Manager initialized")
@@ -72,7 +82,7 @@ class QdrantVectorManager:
         return self.setup_collections()
     
     def setup_collections(self):
-        """Create Qdrant collections for 4-vector strategy"""
+        """Create Qdrant collections for 3-vector strategy"""
         
         print("🔧 Setting up Qdrant collections...")
         
@@ -103,72 +113,47 @@ class QdrantVectorManager:
         print("🎉 All collections created successfully!")
     
     def _create_vector_content(self, metadata: Dict[str, Any], content_text: str) -> Dict[str, str]:
-        """Create optimized text for each vector type - FIXED STRATEGY"""
+        """Create optimized text for 3-VECTOR STRATEGY"""
         
-        # PRIMARY VECTOR: Core learning content (main lesson + content + key takeaways)
-        # This should contain the bulk of searchable content to avoid fragmentation
-        primary_parts = [
+        # SEMANTIC VECTOR: main_lesson + key_takeaways (NO content_text to avoid redundancy)
+        semantic_parts = [
             metadata.get('main_lesson', ''),
-            content_text,
-            ' '.join(metadata.get('key_takeaways', [])),
-            ' '.join(metadata.get('actionable_insights', []))  # Move insights to primary
+            ' '.join(metadata.get('key_takeaways', []))
         ]
         if metadata.get('is_part_of_series'):
-            primary_parts.append(f"Part {metadata.get('part_number')} of {metadata.get('series_title')}")
-        primary_vector_text = ' '.join(filter(None, primary_parts))
+            semantic_parts.append(f"Part {metadata.get('part_number')} of {metadata.get('series_title')}")
+        semantic_vector_text = ' '.join(filter(None, semantic_parts))
         
-        # ENTITY VECTOR: All structured entities (technologies + tools + companies)
-        # Focus on entity names and their contexts for entity-specific queries
-        entity_parts = []
+        # TECHNICAL VECTOR: technologies + tools + specific_examples
+        technical_parts = []
         for tech in metadata.get('technologies_mentioned', []):
             tech_name = tech.get('name', '')
             tech_context = tech.get('context', '')
             if tech_name:
-                entity_parts.append(f"{tech_name}: {tech_context}")
+                technical_parts.append(f"{tech_name}: {tech_context}")
         
         for tool in metadata.get('tools_and_platforms', []):
             tool_name = tool.get('name', '')
             tool_use = tool.get('use_case', '')
             if tool_name:
-                entity_parts.append(f"{tool_name}: {tool_use}")
+                technical_parts.append(f"{tool_name}: {tool_use}")
         
-        for company in metadata.get('companies_discussed', []):
-            # Handle both old format (dict) and new format (string)
-            if isinstance(company, dict):
-                company_name = company.get('name', '')
-                company_context = company.get('context', '')
-                if company_name:
-                    entity_parts.append(f"{company_name}: {company_context}")
-            elif isinstance(company, str):
-                # New Claude format - companies as strings
-                if company:
-                    entity_parts.append(company)
+        # Add specific examples to technical vector
+        technical_parts.extend(metadata.get('specific_examples', []))
         
-        entity_vector_text = ' '.join(filter(None, entity_parts))
+        technical_vector_text = ' '.join(filter(None, technical_parts))
         
-        # Q&A VECTOR: Question-answer patterns for FAQ-style queries
-        qa_parts = [
-            ' '.join(metadata.get('natural_questions', [])),
-            ' '.join(metadata.get('search_scenarios', [])),
-            f"Topic: {metadata.get('main_lesson', '')}"  # Add topic context
+        # ACTION VECTOR: actionable_insights + practical_applications  
+        action_parts = [
+            ' '.join(metadata.get('actionable_insights', [])),
+            ' '.join(metadata.get('practical_applications', []))
         ]
-        qa_vector_text = ' '.join(filter(None, qa_parts))
-        
-        # CONTEXT VECTOR: Practical application information
-        context_parts = [
-            ' '.join(metadata.get('practical_applications', [])),
-            ' '.join(metadata.get('specific_examples', [])),
-            ' '.join(metadata.get('prerequisites', [])),
-            ' '.join(metadata.get('next_steps', [])),
-            ' '.join(metadata.get('related_topics', []))  # Add related topics
-        ]
-        context_vector_text = ' '.join(filter(None, context_parts))
+        action_vector_text = ' '.join(filter(None, action_parts))
         
         return {
-            'content': primary_vector_text,      # Renamed from content to primary
-            'tech': entity_vector_text,          # Renamed from tech to entity  
-            'qa': qa_vector_text,               # Keep as qa
-            'context': context_vector_text       # Keep as context
+            'content': semantic_vector_text,     # SEMANTIC
+            'tech': technical_vector_text,       # TECHNICAL
+            'action': action_vector_text         # ACTION
         }
     
     def _prepare_metadata_for_storage(self, enhanced_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -183,6 +168,9 @@ class QdrantVectorManager:
             'shortcode': source['shortcode'],
             'profile': source['profile'],
             'url': source['url'],
+            
+            # Temporal tracking
+            'post_date': enhanced_data.get('post_date', ''),
             
             # Learning metadata
             'main_lesson': metadata.get('main_lesson', ''),
@@ -200,7 +188,7 @@ class QdrantVectorManager:
         }
     
     def index_document(self, enhanced_data: Dict[str, Any]) -> bool:
-        """Index a single enhanced document across all 4 vectors"""
+        """Index a single enhanced document across all 3 vectors"""
         
         try:
             document_id = enhanced_data['document_id']
@@ -224,9 +212,8 @@ class QdrantVectorManager:
             # Prepare metadata
             storage_metadata = self._prepare_metadata_for_storage(enhanced_data)
             
-            # Add content text and full learning metadata for retrieval using correct nested structure
+            # Add structured learning metadata for retrieval (NO content_text to reduce payload size)
             storage_metadata.update({
-                'content_text': content_text,
                 'key_takeaways': learning_metadata.get('key_takeaways', []),
                 'actionable_insights': learning_metadata.get('actionable_insights', []),
                 'technologies_mentioned': learning_metadata.get('technologies_mentioned', []),
@@ -252,7 +239,7 @@ class QdrantVectorManager:
                     points=[point]
                 )
             
-            print(f"✅ Indexed {document_id} across all 4 vectors")
+            print(f"✅ Indexed {document_id} across all 3 vectors")
             return True
             
         except Exception as e:

@@ -196,4 +196,6 @@ daily_automation_report_*.json
 *.bin
 
 # Knowledge graph prototype files (we'll track these separately)
-knowledge_graph_prototype/
+knowledge_graph_prototype/daily_orchestrator.log*
+gunicorn.out
+*.log
