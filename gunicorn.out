@@ -1,14 +1,14 @@
 nohup: ignoring input
-[2025-09-10 12:21:48 +0000] [2412320] [INFO] Starting gunicorn 23.0.0
-[2025-09-10 12:21:48 +0000] [2412320] [INFO] Listening at: http://0.0.0.0:80 (2412320)
-[2025-09-10 12:21:48 +0000] [2412320] [INFO] Using worker: sync
-[2025-09-10 12:21:48 +0000] [2412321] [INFO] Booting worker with pid: 2412321
-[2025-09-10 12:21:48 +0000] [2412322] [INFO] Booting worker with pid: 2412322
-[2025-09-10 12:21:48 +0000] [2412323] [INFO] Booting worker with pid: 2412323
+[2025-09-11 11:17:28 +0000] [2658187] [INFO] Starting gunicorn 23.0.0
+[2025-09-11 11:17:28 +0000] [2658187] [INFO] Listening at: http://0.0.0.0:80 (2658187)
+[2025-09-11 11:17:28 +0000] [2658187] [INFO] Using worker: sync
+[2025-09-11 11:17:28 +0000] [2658188] [INFO] Booting worker with pid: 2658188
+[2025-09-11 11:17:28 +0000] [2658189] [INFO] Booting worker with pid: 2658189
+[2025-09-11 11:17:28 +0000] [2658190] [INFO] Booting worker with pid: 2658190
 🔍 SEARCH REQUEST RECEIVED
 🚀 Initializing LOCAL Multi-Vector System...
 📁 Looking for enhanced data in: /var/www/uploads/instagram_caption_scraper/rag_system/enhanced_processed
-✅ Using Anthropic Claude API: sk-ant-...A-3ONdBQAA
+📡 Using Anthropic Claude API (fallback): sk-ant-...A-3ONdBQAA
 🧠 Initializing E5-Large-V2 embeddings (512 token context)...
 📐 E5-Large-V2 embedding dimension: 1024
 🔍 GPT4_ENGINE DEBUG: QDRANT_URL env = http://localhost:6333
@@ -29,9 +29,9 @@ nohup: ignoring input
 ✅ Local entity extractor initialized for comparison testing
 📁 Loading enhanced documents...
 📁 Loading enhanced documents...
-📄 Found 522 JSON files in enhanced_processed
+📄 Found 523 JSON files in enhanced_processed
 📁 Loading from path: /var/www/uploads/instagram_caption_scraper/rag_system/enhanced_processed
-✅ Loaded 522 documents
+✅ Loaded 523 documents
 🔧 Initializing extracted components...
 ✅ DocumentSearcher initialized
 ✅ MetadataScorer initialized
@@ -39,125 +39,128 @@ nohup: ignoring input
 ✅ ClaudeRanker initialized
 🎉 All components initialized successfully!
 ✅ System ready with LOCAL Qwen synthesis!
-📝 Query: What is MCP ? Does Ed think its good or bad ?
+📝 Query: What is Claude Code ?
 🔍 Follow-up Analysis:
-  Query: What is MCP ? Does Ed think its good or bad ?
+  Query: What is Claude Code ?
   Decision: NEW-TOPIC
   Confidence: 1.00
   Method: no_history
   Reasoning: No previous conversation context
   Model used: e5
 🔍 LOCAL ENTITY EXTRACTOR DEBUG:
-   Query length: 45 chars
-   Query preview: What is MCP ? Does Ed think its good or bad ?...
-   Local extractor type: <class 'local_entity_extractor.LocalEntityExtractor'>
+   Query length: 21 chars
+   Query preview: What is Claude Code ?...
+   Local extractor type: <class 'rag_system.local_entity_extractor.LocalEntityExtractor'>
    Local extractor available: True
 🔍 LOCAL EXTRACTOR INTERNAL DEBUG:
-   Query: 'What is MCP ? Does Ed think its good or bad ?'
+   Query: 'What is Claude Code ?'
    Ollama available: True
    Ollama URL: http://localhost:11434
    Starting Mistral extraction...
    Prompt construction: 0.00s
-   Prompt length: 863 chars
+   Prompt length: 839 chars
    Payload preparation: 0.00s
    Model: mistral:7b-instruct
    Stream: False
    Timeout: 90s
    Making POST request to: http://localhost:11434/api/generate
-   Ollama API call: 2.96s
+   Ollama API call: 2.68s
    Response status: 200
    JSON parsing: 0.00s
    Response keys: ['model', 'created_at', 'response', 'done', 'done_reason', 'context', 'total_duration', 'load_duration', 'prompt_eval_count', 'prompt_eval_duration', 'eval_count', 'eval_duration']
    Result extraction/cleaning: 0.00s
-   Final entity: 'mcp'
-   Mistral extraction completed: 2.96s
+   Final entity: 'claude code'
+   Mistral extraction completed: 2.68s
 🔍 LOCAL ENTITY EXTRACTOR RESPONSE:
-   Extraction duration: 2.96s
+   Extraction duration: 2.68s
    Result type: <class 'dict'>
-   Result preview: {'primary_entity': 'mcp', 'local_entity': 'mcp', 'local_time_ms': 2960.3796005249023, 'local_success': True}...
-🔍 Local entity extraction: 2.96s
-🔍 Total entity extraction: 2.96s
-🎯 Entity Detected: 'mcp'
-   🔍 Context-aware vector search for 'mcp'
+   Result preview: {'primary_entity': 'claude code', 'local_entity': 'claude code', 'local_time_ms': 2681.5969944000244, 'local_success': True}...
+🔍 Local entity extraction: 2.68s
+🔍 Total entity extraction: 2.68s
+🎯 Entity Detected: 'claude code'
+   🔍 Context-aware vector search for 'claude code'
    📝 Context: False
    🔄 Follow-up: False
    📋 Used docs: 0
+   🔍 Vector search in instagram_content_vectors:
+      Response type: <class 'qdrant_client.http.models.models.QueryResponse'>
+      Found 8 results
+      First result score: 0.85045254
+      ✅ Score preserved: edhonour_DK7l6HyuNQH = 0.850
+      ✅ Score preserved: edhonour_DLa7g4Nud3H = 0.824
+      ✅ Score preserved: edhonour_DL0GPOnuWUm = 0.813
+      ✅ Score preserved: edhonour_DKCk3rLtC0E = 0.806
+      ✅ Score preserved: edhonour_DMJfDv7NVQU = 0.805
+      ✅ Score preserved: edhonour_DKM4JCYNgY4 = 0.804
+      ✅ Score preserved: edhonour_DKPZUmHNcPg = 0.800
+      ✅ Score preserved: edhonour_DL8iee7Ox0u = 0.797
+   ⚠️  Collection not found for vector_type: qa
+   🔍 Vector search in instagram_tech_vectors:
+      Response type: <class 'qdrant_client.http.models.models.QueryResponse'>
+      Found 8 results
+      First result score: 0.8327287
+      ✅ Score preserved: edhonour_DLa7g4Nud3H = 0.833
+      ✅ Score preserved: edhonour_DHLzNcLuVM6 = 0.831
+      ✅ Score preserved: edhonour_DL8iee7Ox0u = 0.831
+      ✅ Score preserved: edhonour_DNdQkoktQgv = 0.828
+      ✅ Score preserved: edhonour_DLv-klENxf8 = 0.827
+      ✅ Score preserved: edhonour_DJ-m1dlNB76 = 0.818
+      ✅ Score preserved: edhonour_DMJfDv7NVQU = 0.818
+      ✅ Score preserved: edhonour_DMkvvcUONPN = 0.818
+   ⚠️  Collection not found for vector_type: context
    📊 Applying metadata scoring to 10 vector results...
-   📊 Searching metadata fields for: 'What is MCP ? Does Ed think its good or bad ?'
-   📊 Found 61 metadata-enhanced results
-      1. edhonour_DIyqCOHOnBW (score: 90) - topic_match: 'MCP', tech_match: 'MCP'
-      2. edhonour_DHyUF7eOMFk (score: 50) - tech_match: 'MCP'
-      3. edhonour_DJ-Q9qxNz9e (score: 50) - tech_match: 'MCP'
-   🎯 Context filtering: 68 → 67 results (0 previously shown, flagged but competing)
-   🏆 TOP RESULT: edhonour_DJ9qHC | sim:0.822 meta:50.000 ctx:0.000 total:50.822
-   🎯 METADATA: 5 docs with scores (avg: 56.0)
-   🎯 Final ranked results: 67 documents
-DEBUG CLAUDE: Processing 67 mentions for entity 'mcp'
+   📊 Searching metadata fields for: 'What is Claude Code ?'
+   📊 Found 112 metadata-enhanced results
+      1. edhonour_DLafft-O24_ (score: 200) - tool_match: 'Claude 4 Sonnet', tool_match: 'Claude 4 Opus'
+      2. edhonour_DM_qvBrNisq (score: 170) - tool_match: 'Claude', tool_match: 'ClaudeCode'
+      3. edhonour_DLa7g4Nud3H (score: 160) - tool_match: 'Claude Code', tech_match: 'Claude Code'
+   🔍 Pre-enhance: edhonour_DK7l6HyuNQH sim=0.850 score=0.850
+   🔍 Pre-enhance: edhonour_DLa7g4Nud3H sim=0.833 score=0.833
+   🔍 Pre-enhance: edhonour_DHLzNcLuVM6 sim=0.831 score=0.831
+   🔍 Pre-enhance: edhonour_DL8iee7Ox0u sim=0.831 score=0.831
+   🔍 Pre-enhance: edhonour_DNdQkoktQgv sim=0.828 score=0.828
+   🔍 Pre-enhance: edhonour_DLv-klENxf8 sim=0.827 score=0.827
+   🔍 Pre-enhance: edhonour_DLa7g4Nud3H sim=0.824 score=0.824
+   🔍 Pre-enhance: edhonour_DJ-m1dlNB76 sim=0.818 score=0.818
+   🔍 Pre-enhance: edhonour_DMJfDv7NVQU sim=0.818 score=0.818
+   🔍 Pre-enhance: edhonour_DMkvvcUONPN sim=0.818 score=0.818
+   🎯 Context filtering: 114 → 113 results (0 previously shown, flagged but competing)
+   🏆 TOP RESULT: edhonour_DK7l6H | sim:0.850 meta:160.000 ctx:0.000 total:160.850
+   🎯 METADATA: 5 docs with scores (avg: 152.0)
+   📊 After deduplication: 113 results
+      Result 1: edhonour_DK7l6HyuNQH sim=0.850 score=0.850 meta=160.000
+      Result 2: edhonour_DLa7g4Nud3H sim=0.833 score=0.833 meta=160.000
+      Result 3: edhonour_DJ-m1dlNB76 sim=0.818 score=0.818 meta=140.000
+   🎯 Final ranked results: 113 documents
+DEBUG CLAUDE: Processing 113 mentions for entity 'claude code'
 📊 SERIES DETECTION: No series detected in top results
 🎯 CLAUDE RANKING: Using two-stage selection for better relevance
 🎯 CLAUDE RANKING: Scoring 20 documents for query relevance
    ✅ HELPFUL - Claude changed document order
 🎯 CLAUDE RANKING: Completed scoring
-📊 CLAUDE SELECTION: Ranked 67 docs (with series) → selected top 11
-📊 SEARCH RESULTS: 11 documents | 3,081 chars | Types: 2
+📊 CLAUDE SELECTION: Ranked 113 docs (with series) → selected top 11
+📊 SEARCH RESULTS: 11 documents | 433 chars | Types: 1
 🔍 CITATION FLOW DEBUG:
    Selected documents count: 11
-   Doc 1: edhonour_DJ-Q9qxNz9e - 
-   Doc 2: edhonour_DKVaaN2yDdO - 
-   Doc 3: edhonour_DMShf3gtQqX - 
-   Doc 4: edhonour_DItdzWPObHG - 
-   Doc 5: edhonour_DIyqCOHOnBW - 
-   Doc 6: edhonour_DJ9qHCdNRGv - Model Context Protocol (MCP) is a standardized JSO
-   Doc 7: edhonour_DHyUF7eOMFk - MCP (Model Context Protocol) is compared to Oracle
-   Doc 8: edhonour_DH1CX7xupeu - The Model Context Protocol (MCP) uses XML which is
-   Doc 9: edhonour_DIpg01JtTWM - 
-   Doc 10: edhonour_DNHaByINo4C - 
-   📋 Top documents: ['edhonour_DJ-Q9qxNz9e', 'edhonour_DKVaaN2yDdO', 'edhonour_DMShf3gtQqX']
-   🧠 Processing 8 enhanced documents...
+   Doc 1: edhonour_DKCk3rLtC0E - 
+   Doc 2: edhonour_DLtFfITswdX - 
+   Doc 3: edhonour_DLafft-O24_ - 
+   Doc 4: edhonour_DLXzSDyO21- - 
+   Doc 5: edhonour_DL0GPOnuWUm - 
+   Doc 6: edhonour_DMh87fCOFbd - 
+   Doc 7: edhonour_DLz5vxduntq - 
+   Doc 8: edhonour_DNf5-3aNlXA - 
+   Doc 9: edhonour_DKPZUmHNcPg - 
+   Doc 10: edhonour_DM_qvBrNisq - 
+   📋 Top documents: ['edhonour_DKCk3rLtC0E', 'edhonour_DLtFfITswdX', 'edhonour_DLafft-O24_']
+   🧠 Processing 11 enhanced documents...
 🤖 CONTEXT-AWARE PROMPT DEBUG:
    Has conversation context: False
    Is follow-up query: False
 🔍 DOCUMENTS SENT TO CLAUDE:
-   Document IDs in synthesis prompt: ['edhonour_DJ-Q9qxNz9e', 'edhonour_DKVaaN2yDdO', 'edhonour_DMShf3gtQqX', 'edhonour_DItdzWPObHG', 'edhonour_DIyqCOHOnBW', 'edhonour_DJ9qHCdNRGv - Posted: 2025-05-22', 'edhonour_DHyUF7eOMFk - Posted: 2025-03-29', 'edhonour_DH1CX7xupeu - Posted: 2025-03-30', 'edhonour_DIpg01JtTWM', 'edhonour_DNHaByINo4C', 'edhonour_DKujyUZOLU6']
+   Document IDs in synthesis prompt: ['edhonour_DKCk3rLtC0E', 'edhonour_DLtFfITswdX', 'edhonour_DLafft-O24_', 'edhonour_DLXzSDyO21-', 'edhonour_DL0GPOnuWUm', 'edhonour_DMh87fCOFbd', 'edhonour_DLz5vxduntq', 'edhonour_DNf5-3aNlXA', 'edhonour_DKPZUmHNcPg', 'edhonour_DM_qvBrNisq', 'edhonour_DMi9NClOpCG']
    Prompt contains 7 [edhonour_] references: ['[edhonour_ID]', '[edhonour_ID]', '[edhonour_ID]', '[edhonour_ID1, edhonour_ID2]', '[edhonour_ABC123]']
-   Prompt length: 7,572 characters
-🤖 LLM Response length: 1674 characters
-🔍 CLAUDE CITATION OUTPUT:
-   Response contains 7 [edhonour_] citations
-   Citations found: ['[edhonour_DJ9qHCdNRGv]', '[edhonour_DHyUF7eOMFk]', '[edhonour_DH1CX7xupeu]', '[edhonour_DJ9qHCdNRGv]', '[edhonour_DJ9qHCdNRGv]', '[edhonour_DJ9qHCdNRGv]', '[edhonour_DHyUF7eOMFk]']
-🔍 CITATION GENERATION DEBUG:
-   Raw Claude response: {
-    "answer": "MCP (Model Context Protocol) is a standardized JSON format proposed by Anthropic for communication with Large Language Models (LLMs) [edhonour_DJ9qHCdNRGv]. Based on Ed's insights, he has a generally negative view of MCP for several reasons:\n\nKey Concerns:\n- Ed compares MCP unfavorably to Oracle WebLogic, viewing it as potentially problematic due to similar issues of complexity and maintenance difficulties [edhonour_DHyUF7eOMFk].\n- He criticizes MCP's use of XML, which many ...
-   Contains [edhonour_ references: 7
-   Extracted answer: MCP (Model Context Protocol) is a standardized JSON format proposed by Anthropic for communication with Large Language Models (LLMs) [edhonour_DJ9qHCdNRGv]. Based on Ed's insights, he has a generally negative view of MCP for several reasons:
-
-Key Concerns:
-- Ed compares MCP unfavorably to Oracle WebLogic, viewing it as potentially problematic due to similar issues of complexity and maintenance difficulties [edhonour_DHyUF7eOMFk].
-- He criticizes MCP's use of XML, which many system engineers cons...
-   Answer contains [edhonour_ references: 7
-✅ Successfully parsed context-aware JSON response
-   Response type: comprehensive
-   Confidence: 0.9
-   Follow-ups: 3
-💾 Stored query context: 1 entities, 11 documents
-🔍 PERFORMANCE PROFILE:
-   follow_up_detection: 0.18s
-   entity_extraction: 2.96s
-   vector_search: 1.23s
-   claude_ranking: 0.00s
-   final_synthesis: 13.14s
-   total_time: 17.50s
-
-================================================================================
-🎯 DEBUG: RAG ENGINE RESPONSE
-================================================================================
-📝 Primary answer length: 1074
-📝 Primary answer preview (first 1000 chars):
-[2025-09-10 16:32:56 +0000] [2412320] [INFO] Handling signal: hup
-[2025-09-10 16:32:56 +0000] [2412320] [INFO] Hang up: Master
-[2025-09-10 16:32:56 +0000] [2412320] [ERROR] Worker (pid:2412322) was sent SIGHUP!
-[2025-09-10 16:32:56 +0000] [2412320] [ERROR] Worker (pid:2412321) was sent SIGHUP!
-[2025-09-10 16:32:56 +0000] [2444647] [INFO] Booting worker with pid: 2444647
-[2025-09-10 16:32:56 +0000] [2444648] [INFO] Booting worker with pid: 2444648
-[2025-09-10 16:32:56 +0000] [2444649] [INFO] Booting worker with pid: 2444649
-[2025-09-10 16:32:56 +0000] [2412320] [ERROR] Worker (pid:2412323) was sent SIGHUP!
+   Prompt length: 5,130 characters
+🚀 Using local Qwen 2.5 32B model (GPU accelerated)
+❌ Qwen model error: name 'qwen_prompt' is not defined
+⚠️ Intelligent extraction error: name 'documents_text' is not defined

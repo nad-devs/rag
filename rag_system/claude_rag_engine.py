@@ -29,10 +29,10 @@ from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 
 # Import extracted components
-from core.document_searcher import DocumentSearcher
-from core.metadata_scorer import MetadataScorer
-from core.entity_detector import EntityDetector
-from core.claude_ranker import ClaudeRanker
+from rag_system.core.document_searcher import DocumentSearcher
+from rag_system.core.metadata_scorer import MetadataScorer
+from rag_system.core.entity_detector import EntityDetector
+from rag_system.core.claude_ranker import ClaudeRanker
 
 # Ensure Qdrant URL is set for Docker instance if not already set
 if not os.getenv('QDRANT_URL'):
@@ -47,10 +47,10 @@ from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, Fi
 from sentence_transformers import SentenceTransformer
 import uuid
 from datetime import datetime
-from core.context_tracker import ConversationTracker
-from core.hybrid_rag_system import HybridRAGSystem
-from local_entity_extractor import LocalEntityExtractor
-from local_mistral_synthesizer import LocalMistralSynthesizer
+from rag_system.core.context_tracker import ConversationTracker
+from rag_system.core.hybrid_rag_system import HybridRAGSystem
+from rag_system.local_entity_extractor import LocalEntityExtractor
+from rag_system.local_mistral_synthesizer import LocalMistralSynthesizer
 
 
 # Claude returns valid JSON, no need for special parsing
@@ -115,19 +115,35 @@ class ClaudeRAGEngine:
             self.local_synthesizer = None
         
         # Anthropic setup (preferred) with OpenAI fallback  
-        # Still needed for document ranking and entity extraction
+        # Check if Qwen model is available first
+        self.use_qwen = False
+        try:
+            import ollama
+            models = ollama.list()
+            if any('qwen2.5:32b' in model['name'] for model in models['models']):
+                self.use_qwen = True
+                print("✅ Qwen 2.5 32B model detected - will use for synthesis")
+        except:
+            pass
+        
+        # Still check for Anthropic API for fallback
         anthropic_key = os.getenv('ANTHROPIC_API_KEY')
         
-        if anthropic_key:
-            print(f"✅ Using Anthropic Claude API: sk-ant-...{anthropic_key[-10:]}")
+        if self.use_qwen:
+            # Prefer Qwen over Claude for cost savings
+            print("🚀 Using local Qwen model for synthesis (GPU accelerated)")
+            self.client = None
+            self.use_anthropic = False
+        elif anthropic_key:
+            print(f"📡 Using Anthropic Claude API (fallback): sk-ant-...{anthropic_key[-10:]}")
             self.client = anthropic.Anthropic(api_key=anthropic_key)
             self.use_anthropic = True
         else:
             if not use_local_synthesis:
-                print("❌ No ANTHROPIC_API_KEY found!")
-                raise ValueError("ANTHROPIC_API_KEY is required")
+                print("❌ No Qwen model or ANTHROPIC_API_KEY found!")
+                raise ValueError("Either Qwen model or ANTHROPIC_API_KEY is required")
             else:
-                print("⚠️ No ANTHROPIC_API_KEY found - using local synthesis only")
+                print("⚠️ No Qwen or Anthropic API - using local synthesis only")
                 self.client = None
                 self.use_anthropic = False
         
@@ -146,9 +162,9 @@ class ClaudeRAGEngine:
                 # Map collection keys to full names for DocumentSearcher compatibility
                 self.collections = {
                     'content': 'instagram_content_vectors',
-                    'qa': 'instagram_qa_vectors', 
-                    'tech': 'instagram_tech_vectors',
-                    'context': 'instagram_context_vectors'
+                    'action': 'instagram_action_vectors',  # Changed from 'qa' to match rebuild
+                    'tech': 'instagram_tech_vectors'
+                    # Removed 'context' - only using 3 vectors now
                 }
                 print("✅ Vector search initialized (using existing collections)")
             except Exception as e:
@@ -439,6 +455,12 @@ class ClaudeRAGEngine:
                 # Start with vector result (preserves similarity_score)
                 enhanced_result = dict(vector_result)
                 
+                # DEBUG: Check if scores exist before enhancement
+                orig_sim = vector_result.get('similarity_score', 0)
+                orig_score = vector_result.get('score', 0)
+                if orig_sim > 0 or orig_score > 0:
+                    print(f"   🔍 Pre-enhance: {doc_id[:20]} sim={orig_sim:.3f} score={orig_score:.3f}")
+                
                 # Ensure similarity_score is preserved from vector search
                 if 'similarity_score' not in enhanced_result and 'score' in enhanced_result:
                     enhanced_result['similarity_score'] = enhanced_result['score']
@@ -473,6 +495,15 @@ class ClaudeRAGEngine:
                 used_document_ids, 
                 is_followup
             )
+            
+            # DEBUG: Check if scores survived deduplication
+            print(f"   📊 After deduplication: {len(entity_mentions)} results")
+            for i, mention in enumerate(entity_mentions[:3]):
+                doc_id = mention.get('doc_id', 'unknown')[:20]
+                sim = mention.get('similarity_score', 0)
+                score = mention.get('score', 0)
+                meta = mention.get('metadata_score', 0)
+                print(f"      Result {i+1}: {doc_id} sim={sim:.3f} score={score:.3f} meta={meta:.3f}")
             
             print(f"   🎯 Final ranked results: {len(entity_mentions)} documents")
         
@@ -912,24 +943,51 @@ class ClaudeRAGEngine:
                     extraction_reasoning=f"Local Qwen synthesis: {synthesis_result['reasoning']}"
                 )
                 
-            elif self.use_anthropic:
-                # Add timeout to prevent hanging
-                response = self.client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                    max_tokens=2500,
-                    timeout=30.0  # 30 second timeout
-                )
-                raw_content = response.content[0].text
             else:
-                response = self.client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.1,
-                    max_tokens=2500
-                )
-                raw_content = response.choices[0].message.content
+                # Use local Qwen model via Ollama (GPU accelerated)
+                import ollama
+                
+                print("🚀 Using local Qwen 2.5 32B model (GPU accelerated)")
+                # Note: qwen_prompt will be created after documents_text is defined
+                
+                try:
+                    # Call Ollama with Qwen model (GPU accelerated by default)
+                    response = ollama.chat(
+                        model='qwen2.5:32b-instruct-q4_K_M',
+                        messages=[{'role': 'user', 'content': qwen_prompt}],
+                        options={
+                            'temperature': 0.1,
+                            'num_predict': 3000,  # Allow comprehensive responses
+                            'num_gpu': -1,  # Use all available GPU layers
+                            'num_thread': 8,  # Multiple CPU threads for preprocessing
+                            'top_k': 40,
+                            'top_p': 0.9,
+                            'repeat_penalty': 1.1  # Reduce repetition
+                        }
+                    )
+                    raw_content = response['message']['content']
+                    print(f"✅ Qwen responded successfully ({len(raw_content)} chars)")
+                    
+                    # DEBUG: Show Qwen's raw response
+                    print(f"\n🔍 QWEN OUTPUT DEBUG:")
+                    print(f"   Raw response first 300 chars: {raw_content[:300]}...")
+                    
+                    # Clean response if wrapped in markdown
+                    if '```json' in raw_content:
+                        print("   📝 Cleaning markdown wrapper from JSON")
+                        start = raw_content.find('{')
+                        end = raw_content.rfind('}') + 1
+                        if start >= 0 and end > start:
+                            raw_content = raw_content[start:end]
+                            print(f"   ✅ Cleaned JSON: {raw_content[:200]}...")
+                    
+                except Exception as e:
+                    print(f"❌ Qwen model error: {e}")
+                    # Fallback response if model fails
+                    raw_content = json.dumps({
+                        "answer": f"Based on Ed's content: {documents_text[:500]}...",
+                        "confidence": 0.7
+                    })
             
             print(f"🤖 LLM Response length: {len(raw_content)} characters")
             
@@ -943,14 +1001,16 @@ class ClaudeRAGEngine:
             
             # Try to parse JSON response with robust cleaning
             try:
-                # Claude returns valid JSON - just parse it directly
+                # Parse JSON response (works for both Claude and Qwen)
                 result = json.loads(raw_content)
                 
                 # Extract structured response
                 answer = result.get('answer', '')
                 confidence = result.get('confidence', 0.8)
-                response_type = result.get('response_type', 'context_aware')
-                reasoning = result.get('reasoning', 'Context-aware extraction')
+                
+                # Optional fields - use defaults if not present (for Qwen's minimal JSON)
+                response_type = result.get('response_type', 'comprehensive')
+                reasoning = result.get('reasoning', 'Synthesized from documents')
                 follow_up_questions = result.get('follow_up_questions', [])
                 
                 # Citation generation debug
@@ -960,10 +1020,20 @@ class ClaudeRAGEngine:
                 print(f"   Extracted answer: {answer[:500]}...")
                 print(f"   Answer contains [edhonour_ references: {answer.count('[edhonour_')}")
                 
-                print(f"✅ Successfully parsed context-aware JSON response")
+                print(f"✅ Successfully parsed JSON response")
                 print(f"   Response type: {response_type}")
                 print(f"   Confidence: {confidence}")
-                print(f"   Follow-ups: {len(follow_up_questions)}")
+                print(f"   Answer length: {len(answer)} chars")
+                print(f"   Citations in answer: {answer.count('[edhonour_')}")
+                
+                # DEBUG: Check if Qwen properly added citations
+                if self.use_qwen:
+                    print(f"\n✅ QWEN GENERATION SUCCESS:")
+                    print(f"   Answer preview: {answer[:200]}...")
+                    citations_found = re.findall(r'\[edhonour_[^\]]+\]', answer)
+                    print(f"   Total citations added: {len(citations_found)}")
+                    if citations_found:
+                        print(f"   Example citations: {citations_found[:3]}")
                 
             except json.JSONDecodeError as je:
                 print(f"⚠️ JSON parsing failed: {je}")
@@ -1066,6 +1136,50 @@ CONVERSATION CONTEXT:
         documents_text = combined_content
         if structured_additions:
             documents_text += f"\n\nSTRUCTURED INSIGHTS:\n{chr(10).join(structured_additions)}"
+        
+        # DEBUG: Show what documents we're sending to Qwen (after documents_text is defined)
+        if self.use_qwen:
+            print(f"\n📊 QWEN INPUT DEBUG:")
+            print(f"   Query: {query}")
+            print(f"   Documents count: {len(doc_mentions)}")
+            print(f"   Total content length: {len(documents_text)} chars")
+            print(f"   First 500 chars of documents: {documents_text[:500]}...")
+            
+            # Create Qwen prompt now that documents_text is defined
+            qwen_prompt = f"""You are analyzing Ed's Instagram content to answer user questions.
+
+CONTENT STRUCTURE GUIDELINES:
+- Open with a clear, direct answer to the user's question
+- Organize information in logical sections
+- Use bullet points for multiple related concepts
+- Include specific examples from Ed's content
+- Explain WHY Ed recommends something, not just WHAT
+
+TEMPORAL AWARENESS:
+- Notice the dates in [DOCUMENT edhonour_XXX - Posted: DATE] headers
+- If Ed's opinion changed over time, mention it naturally:
+  Example: "In March 2024, Ed recommended X [edhonour_123]. By October 2024, he shifted to Y [edhonour_456]."
+- Don't overanalyze evolution, just state the facts with dates
+
+CITATION RULES:
+- Add [edhonour_XXX] at the END of sentences, before the period
+- Example: Ed recommends using AI tools for productivity [edhonour_ABC123].
+- For bullet points: Put citation at the end of each point [edhonour_XYZ].
+- NEVER put citations on headers or titles
+- One citation per sentence is sufficient
+
+RELEVANT CONTENT:
+{documents_text}
+
+USER'S QUESTION: {query}
+
+Generate a comprehensive response following the guidelines above, then format as JSON:
+{{
+    "answer": "Your detailed response with proper citations [edhonour_XXX]",
+    "confidence": 0.85
+}}
+
+Important: Return ONLY the JSON object, no additional text."""
 
         # Enhanced prompt for Claude synthesis
         full_prompt = f"""Based on the provided content about Ed's insights, generate a comprehensive response following these guidelines:

@@ -70,8 +70,8 @@ class QdrantVectorManager:
         # Collection names for 3-vector strategy
         self.collections = {
             'content': 'instagram_content_vectors',    # SEMANTIC vector
-            'tech': 'instagram_tech_vectors',         # TECHNICAL vector
-            'action': 'instagram_action_vectors'      # ACTION vector
+            'action': 'instagram_action_vectors',      # ACTION vector
+            'tech': 'instagram_tech_vectors'          # TECHNICAL vector
         }
         
         print(f"✅ Qdrant Vector Manager initialized")

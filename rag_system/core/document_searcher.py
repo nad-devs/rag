@@ -96,22 +96,39 @@ class DocumentSearcher:
                 print(f"   ⚠️  No embedding model available for vector search")
                 return []
             
-            search_results = self.qdrant_client.search(
+            # Use query_points instead of deprecated search method
+            search_response = self.qdrant_client.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=limit
             )
+            
+            # Debug output
+            print(f"   🔍 Vector search in {collection_name}:")
+            print(f"      Response type: {type(search_response)}")
+            
+            # Access points from the response
+            search_results = search_response.points if hasattr(search_response, 'points') else []
+            print(f"      Found {len(search_results)} results")
+            if search_results and len(search_results) > 0:
+                print(f"      First result score: {search_results[0].score}")
             
             results = []
             for result in search_results:
                 payload = result.payload
-                payload['score'] = float(result.score)
-                payload['similarity_score'] = float(result.score)  # ADD: Map to expected field name
+                score_value = float(result.score)
+                payload['score'] = score_value
+                payload['similarity_score'] = score_value  # ADD: Map to expected field name
                 payload['search_type'] = 'vector_semantic'  # ADD: Search type for ranking
                 payload['vector_type'] = collection_name  # Use actual collection name instead of mapped key
                 # Map document_id to doc_id for compatibility with other components
                 if 'document_id' in payload:
                     payload['doc_id'] = payload['document_id']
+                
+                # DEBUG: Verify score is set
+                if score_value > 0:
+                    print(f"      ✅ Score preserved: {payload.get('doc_id', 'unknown')[:20]} = {score_value:.3f}")
+                
                 results.append(payload)
             
             return results
