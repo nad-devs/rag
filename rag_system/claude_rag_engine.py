@@ -244,97 +244,45 @@ class ClaudeRAGEngine:
 
     
     def _extract_vector_specific_content(self, mention: Dict[str, Any]) -> str:
-        """Extract content directly from vector payload (3-vector strategy)"""
-        vector_type = mention.get('vector_type', 'instagram_content_vectors')
-        
-        # Fields are directly in mention from DocumentSearcher
+        """Extract ALL content fields regardless of which vector matched"""
+        # We use 3 vectors for better MATCHING, but once matched, send ALL fields
         content_parts = []
         
-        # Map to 3-VECTOR STRATEGY
-        if vector_type == 'instagram_content_vectors':
-            # SEMANTIC vector: main lesson, key takeaways for general queries
-            content_parts = [
-                mention.get('main_lesson', ''),
-                ' '.join(mention.get('key_takeaways', []))
-            ]
+        # Always include core semantic content
+        if mention.get('main_lesson'):
+            content_parts.append(mention.get('main_lesson', ''))
+        
+        if mention.get('key_takeaways'):
+            content_parts.append(' '.join(mention.get('key_takeaways', [])))
+        
+        # Always include actionable content
+        if mention.get('actionable_insights'):
+            content_parts.append(' '.join(mention.get('actionable_insights', [])))
             
-        elif vector_type == 'instagram_tech_vectors':
-            # TECHNICAL vector: technologies, tools, examples for tech queries
-            tech_parts = []
-            for tech in mention.get('technologies_mentioned', []):
-                if isinstance(tech, dict):
-                    tech_parts.append(f"{tech.get('name', '')}: {tech.get('context', '')}")
-                else:
-                    tech_parts.append(str(tech))
-            
-            for tool in mention.get('tools_and_platforms', []):
-                if isinstance(tool, dict):
-                    tech_parts.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
-                else:
-                    tech_parts.append(str(tool))
-            
-            # Add specific examples to technical content
-            examples = mention.get('specific_examples', [])
-            if examples:
-                tech_parts.extend(examples)
-                    
-            content_parts = tech_parts
-            
-        elif vector_type == 'instagram_action_vectors':
-            # ACTION vector: actionable insights, practical applications for how-to queries
-            content_parts = [
-                ' '.join(mention.get('actionable_insights', [])),
-                ' '.join(mention.get('practical_applications', []))
-            ]
-            
-        # Handle legacy context vectors (map to ACTION vectors)
-        elif vector_type == 'instagram_context_vectors':
-            # Map old context vectors to ACTION vector logic
-            content_parts = [
-                ' '.join(mention.get('specific_examples', [])),
-                ' '.join(mention.get('practical_applications', [])),
-                ' '.join(mention.get('actionable_insights', []))
-            ]
-            
-        # Legacy support for old collection names
-        elif vector_type == 'primary':
-            content_parts = [
-                mention.get('main_lesson', ''),
-                ' '.join(mention.get('key_takeaways', [])),
-                ' '.join(mention.get('actionable_insights', []))
-            ]
-            
-        elif vector_type == 'insights':
-            tech_parts = []
-            for tech in mention.get('technologies_mentioned', []):
-                if isinstance(tech, dict):
-                    tech_parts.append(f"{tech.get('name', '')}: {tech.get('context', '')}")
-                else:
-                    tech_parts.append(str(tech))
-            
-            for tool in mention.get('tools_and_platforms', []):
-                if isinstance(tool, dict):
-                    tech_parts.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
-                else:
-                    tech_parts.append(str(tool))
-                    
-            content_parts = tech_parts + [mention.get('main_lesson', '')]
-            
-        elif vector_type == 'technical':
-            content_parts = [
-                ' '.join(mention.get('natural_questions', [])),
-                ' '.join(mention.get('search_scenarios', [])),
-                mention.get('main_lesson', '')
-            ]
-            
-        elif vector_type == 'practical':
-            content_parts = [
-                ' '.join(mention.get('specific_examples', [])),
-                ' '.join(mention.get('practical_applications', [])),
-                ' '.join(mention.get('prerequisites', [])),
-                ' '.join(mention.get('related_topics', [])),
-                mention.get('main_lesson', '')
-            ]
+        if mention.get('practical_applications'):
+            content_parts.append(' '.join(mention.get('practical_applications', [])))
+        
+        # Always include technical content
+        tech_parts = []
+        for tech in mention.get('technologies_mentioned', []):
+            if isinstance(tech, dict):
+                tech_parts.append(f"{tech.get('name', '')}: {tech.get('context', '')}")
+            else:
+                tech_parts.append(str(tech))
+        
+        for tool in mention.get('tools_and_platforms', []):
+            if isinstance(tool, dict):
+                tech_parts.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
+            else:
+                tech_parts.append(str(tool))
+        
+        if tech_parts:
+            content_parts.extend(tech_parts)
+        
+        # Include examples if available
+        examples = mention.get('specific_examples', [])
+        if examples:
+            content_parts.extend(examples)
         
         # Combine all non-empty parts
         final_content = ' '.join(filter(None, content_parts))

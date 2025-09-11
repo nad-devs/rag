@@ -1,96 +1,77 @@
-2025-09-08 08:00:14,744 - instagram_scraper - INFO - Available browsers: {'chrome': True, 'firefox': False}
-2025-09-08 08:00:14,744 - instagram_scraper - INFO - Starting Instagram scraper session
-2025-09-08 08:00:14,744 - instagram_scraper - INFO - Platform: Linux 5.15.0-152-generic
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - WSL detected: False (WSL2: False)
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - Available browsers: {'chrome': True, 'firefox': False}
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - Attempting to setup Chrome driver
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - Using Chrome binary: /usr/bin/google-chrome
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - Using desktop User-Agent (Chrome 119) to force classic login page
-2025-09-08 08:00:14,745 - instagram_scraper - INFO - Using temporary Chrome profile: /tmp/chrome_scraper_lei_dvbp
-2025-09-08 08:00:14,746 - instagram_scraper - INFO - Downloading ChromeDriver...
-2025-09-08 08:00:15,578 - instagram_scraper - INFO - ChromeDriver installed at: /home/arjun/.wdm/drivers/chromedriver/linux64/139.0.7258.154/chromedriver-linux64/chromedriver
-2025-09-08 08:00:16,154 - instagram_scraper - INFO - Chrome driver initialized successfully
-2025-09-08 08:00:16,155 - instagram_scraper - INFO - Loading Whisper model (this may take a moment on first run)...
-2025-09-08 08:00:16,199 - instagram_scraper - INFO - 🚀 Detected 2 GPU(s) - using GPU acceleration
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - Available browsers: {'chrome': True, 'firefox': False}
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - Starting Instagram scraper session
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - Platform: Linux 5.15.0-152-generic
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - WSL detected: False (WSL2: False)
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - Available browsers: {'chrome': True, 'firefox': False}
+2025-09-10 08:00:11,224 - instagram_scraper - INFO - Attempting to setup Chrome driver
+2025-09-10 08:00:11,225 - instagram_scraper - INFO - Using Chrome binary: /usr/bin/google-chrome
+2025-09-10 08:00:11,225 - instagram_scraper - INFO - Using desktop User-Agent (Chrome 120) to force classic login page
+2025-09-10 08:00:11,225 - instagram_scraper - INFO - Using temporary Chrome profile: /tmp/chrome_scraper_ji49at86
+2025-09-10 08:00:11,225 - instagram_scraper - INFO - Downloading ChromeDriver...
+2025-09-10 08:00:12,098 - instagram_scraper - INFO - ChromeDriver installed at: /home/arjun/.wdm/drivers/chromedriver/linux64/139.0.7258.154/chromedriver-linux64/chromedriver
+2025-09-10 08:00:12,629 - instagram_scraper - INFO - Chrome driver initialized successfully
+2025-09-10 08:00:12,631 - instagram_scraper - INFO - Loading Whisper model (this may take a moment on first run)...
+2025-09-10 08:00:12,666 - instagram_scraper - INFO - 🚀 Detected 2 GPU(s) - using GPU acceleration
 /home/arjun/.local/lib/python3.10/site-packages/whisper/__init__.py:150: FutureWarning: You are using `torch.load` with `weights_only=False` (the current default value), which uses the default pickle module implicitly. It is possible to construct malicious pickle data which will execute arbitrary code during unpickling (See https://github.com/pytorch/pytorch/blob/main/SECURITY.md#untrusted-models for more details). In a future release, the default value for `weights_only` will be flipped to `True`. This limits the functions that could be executed during unpickling. Arbitrary objects will no longer be allowed to be loaded via this mode unless they are explicitly allowlisted by the user via `torch.serialization.add_safe_globals`. We recommend you start setting `weights_only=True` for any use case where you don't have full control of the loaded file. Please open an issue on GitHub for any issues related to this experimental feature.
   checkpoint = torch.load(fp, map_location=device)
-2025-09-08 08:00:43,932 - instagram_scraper - INFO - ✅ Whisper model loaded successfully
-2025-09-08 08:00:44,028 - instagram_scraper - INFO - Video transcriber initialized: {'whisper_available': True, 'moviepy_available': False, 'ffmpeg_python_available': True, 'ffmpeg_available': True, 'torchaudio_available': True, 'recommended_method': 'video_transcription', 'whisper_model_loaded': True, 'whisper_model': 'large-v3', 'whisper_mode': 'with_torchaudio', 'moviepy_error': "No module named 'moviepy.editor'"}
-2025-09-08 08:00:44,028 - instagram_scraper - INFO - Testing Instagram access...
-2025-09-08 08:00:48,405 - instagram_scraper - WARNING - Potential challenge detected: challenge
-2025-09-08 08:00:48,405 - instagram_scraper - INFO - Instagram access test successful
-2025-09-08 08:00:48,405 - instagram_scraper - INFO - Driver setup completed successfully using chrome 139.0.7258.154
-2025-09-08 08:00:48,406 - instagram_scraper - INFO - 🔐 Attempting Instagram login for user: not***
-2025-09-08 08:01:02,737 - instagram_scraper - INFO - Fallback: Navigating directly to login page
-2025-09-08 08:01:23,256 - instagram_scraper - INFO - Current URL: https://www.instagram.com/accounts/login/
-2025-09-08 08:01:23,261 - instagram_scraper - INFO - Page title: Login • Instagram
-2025-09-08 08:01:25,105 - instagram_scraper - INFO - Entered username: not_ed_honour
-2025-09-08 08:01:27,979 - instagram_scraper - INFO - Entered password (hidden)
-2025-09-08 08:01:28,940 - instagram_scraper - INFO - Clicked login button
-2025-09-08 08:01:30,112 - instagram_scraper - INFO - ⏳ Waiting for login to process...
-2025-09-08 08:01:33,865 - instagram_scraper - INFO - URL after login processing: https://www.instagram.com/accounts/login/
-2025-09-08 08:01:33,865 - instagram_scraper - WARNING - ⚠️ Still on login page, restarting login process (attempt 1/3)...
-2025-09-08 08:01:52,340 - instagram_scraper - INFO - 🔄 Restarting login from the beginning...
-2025-09-08 08:02:07,190 - instagram_scraper - INFO - Fallback: Navigating directly to login page
-2025-09-08 08:02:28,057 - instagram_scraper - INFO - Current URL: https://www.instagram.com/
-2025-09-08 08:02:28,065 - instagram_scraper - INFO - Page title: Instagram
-2025-09-08 08:05:07,049 - instagram_scraper - INFO - Entered username: not_ed_honour
-2025-09-08 08:05:26,018 - instagram_scraper - ERROR - Password input field not found on retry
-2025-09-08 08:05:26,029 - instagram_scraper - INFO - Post-login URL: https://www.instagram.com/
-2025-09-08 08:05:39,723 - instagram_scraper - INFO - ✅ Login successful (URL indicates logged in)
-2025-09-08 08:05:39,724 - instagram_scraper - INFO - 🔍 Starting profile reel discovery for: https://www.instagram.com/edhonour/
-2025-09-08 08:06:01,008 - instagram_scraper - INFO - 📱 Navigating to reels tab: https://www.instagram.com/edhonour/reels/
-2025-09-08 08:06:19,006 - instagram_scraper - INFO - 🔄 Finding first reel to click...
-2025-09-08 08:06:33,294 - instagram_scraper - INFO - 🔄 Discovering additional reels via arrow navigation (total needed: 13, will skip first 3)
-2025-09-08 08:06:40,974 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DHG5m-YuwcY/
-2025-09-08 08:06:40,980 - instagram_scraper - INFO - 🔄 Discovered reel 2/13: https://www.instagram.com/reel/DHG5m-YuwcY/
-2025-09-08 08:06:49,025 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DFnr1svsP--/
-2025-09-08 08:06:49,031 - instagram_scraper - INFO - 🔄 Discovered reel 3/13: https://www.instagram.com/reel/DFnr1svsP--/
-2025-09-08 08:06:56,559 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOUQWb0km7-/
-2025-09-08 08:06:56,565 - instagram_scraper - INFO - 🔄 Discovered reel 4/13: https://www.instagram.com/reel/DOUQWb0km7-/
-2025-09-08 08:07:03,812 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOSG4QqktT5/
-2025-09-08 08:07:03,818 - instagram_scraper - INFO - 🔄 Discovered reel 5/13: https://www.instagram.com/reel/DOSG4QqktT5/
-2025-09-08 08:07:11,161 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DORrvFOkqol/
-2025-09-08 08:07:11,167 - instagram_scraper - INFO - 🔄 Discovered reel 6/13: https://www.instagram.com/reel/DORrvFOkqol/
-2025-09-08 08:07:18,699 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOPIVn_jiRa/
-2025-09-08 08:07:18,706 - instagram_scraper - INFO - 🔄 Discovered reel 7/13: https://www.instagram.com/reel/DOPIVn_jiRa/
-2025-09-08 08:07:26,777 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOOociJjhoz/
-2025-09-08 08:07:26,783 - instagram_scraper - INFO - 🔄 Discovered reel 8/13: https://www.instagram.com/reel/DOOociJjhoz/
-2025-09-08 08:07:34,585 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOOb6f6Dk8w/
-2025-09-08 08:07:34,591 - instagram_scraper - INFO - 🔄 Discovered reel 9/13: https://www.instagram.com/reel/DOOb6f6Dk8w/
-2025-09-08 08:07:42,259 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOMBM9kjnMw/
-2025-09-08 08:07:42,265 - instagram_scraper - INFO - 🔄 Discovered reel 10/13: https://www.instagram.com/reel/DOMBM9kjnMw/
-2025-09-08 08:07:49,660 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOLs7aNDvks/
-2025-09-08 08:07:49,665 - instagram_scraper - INFO - 🔄 Discovered reel 11/13: https://www.instagram.com/reel/DOLs7aNDvks/
-2025-09-08 08:07:57,435 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOKHG3sjp8Z/
-2025-09-08 08:07:57,441 - instagram_scraper - INFO - 🔄 Discovered reel 12/13: https://www.instagram.com/reel/DOKHG3sjp8Z/
-2025-09-08 08:08:05,352 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOJuI4nkpiq/
-2025-09-08 08:08:05,358 - instagram_scraper - INFO - 🔄 Discovered reel 13/13: https://www.instagram.com/reel/DOJuI4nkpiq/
-2025-09-08 08:08:05,358 - instagram_scraper - INFO - ✅ Reel discovery completed: 13 reels found
-2025-09-08 08:08:05,358 - instagram_scraper - INFO - ✅ Discovered 13 reel URLs
-2025-09-08 08:08:05,358 - instagram_scraper - INFO - Applied skip_first=3, processing 10 remaining reels
-2025-09-08 08:08:05,359 - instagram_scraper - INFO - Found 49 already processed reels
-2025-09-08 08:08:05,360 - instagram_scraper - INFO - 🎬 Processing 1 new reels...
-2025-09-08 08:08:05,360 - instagram_scraper - INFO - Processing reel 1/1 (position 1): https://www.instagram.com/reel/DOUQWb0km7-/
-2025-09-08 08:08:22,812 - instagram_scraper - INFO - Starting video transcription for: https://www.instagram.com/reel/DOUQWb0km7-/
-2025-09-08 08:08:43,362 - instagram_scraper - INFO - 🎥 Starting video download and transcription...
-2025-09-08 08:08:43,362 - instagram_scraper - INFO - Starting video processing for DOUQWb0km7-
-2025-09-08 08:08:43,362 - instagram_scraper - INFO - 🎥 Extracting video URL using yt-dlp...
-2025-09-08 08:08:43,374 - instagram_scraper - INFO - Exported 11 cookies to temp_videos/instagram_cookies.txt
-2025-09-08 08:08:43,374 - instagram_scraper - INFO - 🔧 Running yt-dlp with cookies from: temp_videos/instagram_cookies.txt
-2025-09-08 08:08:44,491 - instagram_scraper - INFO - ✅ yt-dlp --get-url found video URL: https://scontent-ord5-1.cdninstagram.com/o1/v/t2/f2/m86/AQPgx7l4v8PGaOIbDlDvZb1g1PXjpNs2LN3kCPPwsl16...
-2025-09-08 08:08:44,491 - instagram_scraper - INFO - ✅ Successfully extracted video URL with yt-dlp
-2025-09-08 08:08:44,491 - instagram_scraper - INFO - 🚀 Downloading video with improved method: https://scontent-ord5-1.cdninstagram.com/o1/v/t2/f2/m86/AQPgx7l4v8PGaOIbDlDvZb1g1PXjpNs2LN3kCPPwsl16...
-2025-09-08 08:08:45,030 - instagram_scraper - INFO - ✅ Fast download completed: 29.6 MB in 0.5s (55.7 MB/s)
-2025-09-08 08:08:45,031 - instagram_scraper - INFO - Extracting audio from video...
-2025-09-08 08:08:45,258 - instagram_scraper - INFO - Audio extracted with ffmpeg: temp_videos/DOUQWb0km7-_1757318924.wav
-2025-09-08 08:08:45,258 - instagram_scraper - INFO - Transcribing audio with Whisper...
-2025-09-08 08:08:55,452 - instagram_scraper - INFO - Transcription completed in 10.2s: 658 characters
-2025-09-08 08:08:55,452 - instagram_scraper - INFO - Video processing completed successfully: 657 characters transcribed
-2025-09-08 08:08:55,457 - instagram_scraper - INFO - ✅ Video transcription successful: 657 characters, 12 segments
-2025-09-08 08:08:55,673 - instagram_scraper - INFO - 🎯 Profile scraping completed: 1 successful, 0 failed
-2025-09-08 08:08:55,673 - instagram_scraper - INFO - Video transcriber cleanup completed
-2025-09-08 08:08:55,787 - instagram_scraper - INFO - Driver session closed successfully
+2025-09-10 08:00:42,152 - instagram_scraper - INFO - ✅ Whisper model loaded successfully
+2025-09-10 08:00:42,555 - instagram_scraper - INFO - Video transcriber initialized: {'whisper_available': True, 'moviepy_available': False, 'ffmpeg_python_available': True, 'ffmpeg_available': True, 'torchaudio_available': True, 'recommended_method': 'video_transcription', 'whisper_model_loaded': True, 'whisper_model': 'large-v3', 'whisper_mode': 'with_torchaudio', 'moviepy_error': "No module named 'moviepy.editor'"}
+2025-09-10 08:00:42,555 - instagram_scraper - INFO - Testing Instagram access...
+2025-09-10 08:00:45,497 - instagram_scraper - WARNING - Potential challenge detected: challenge
+2025-09-10 08:00:45,498 - instagram_scraper - INFO - Instagram access test successful
+2025-09-10 08:00:45,498 - instagram_scraper - INFO - Driver setup completed successfully using chrome 139.0.7258.154
+2025-09-10 08:00:45,499 - instagram_scraper - INFO - 🔐 Attempting Instagram login for user: not***
+2025-09-10 08:00:59,942 - instagram_scraper - INFO - Fallback: Navigating directly to login page
+2025-09-10 08:01:20,057 - instagram_scraper - INFO - Current URL: https://www.instagram.com/accounts/login/
+2025-09-10 08:01:20,062 - instagram_scraper - INFO - Page title: Login • Instagram
+2025-09-10 08:01:21,888 - instagram_scraper - INFO - Entered username: not_ed_honour
+2025-09-10 08:01:24,877 - instagram_scraper - INFO - Entered password (hidden)
+2025-09-10 08:01:25,587 - instagram_scraper - INFO - Clicked login button
+2025-09-10 08:01:27,568 - instagram_scraper - INFO - ⏳ Waiting for login to process...
+2025-09-10 08:01:30,645 - instagram_scraper - INFO - URL after login processing: https://www.instagram.com/accounts/login/
+2025-09-10 08:01:30,645 - instagram_scraper - WARNING - ⚠️ Still on login page, restarting login process (attempt 1/3)...
+2025-09-10 08:01:48,987 - instagram_scraper - INFO - 🔄 Restarting login from the beginning...
+2025-09-10 08:02:03,893 - instagram_scraper - INFO - Fallback: Navigating directly to login page
+2025-09-10 08:02:24,732 - instagram_scraper - INFO - Current URL: https://www.instagram.com/
+2025-09-10 08:02:24,740 - instagram_scraper - INFO - Page title: Instagram
+2025-09-10 08:05:03,228 - instagram_scraper - INFO - Entered username: not_ed_honour
+2025-09-10 08:05:22,294 - instagram_scraper - ERROR - Password input field not found on retry
+2025-09-10 08:05:22,301 - instagram_scraper - INFO - Post-login URL: https://www.instagram.com/
+2025-09-10 08:05:36,078 - instagram_scraper - INFO - ✅ Login successful (URL indicates logged in)
+2025-09-10 08:05:36,078 - instagram_scraper - INFO - 🔍 Starting profile reel discovery for: https://www.instagram.com/edhonour/
+2025-09-10 08:05:57,833 - instagram_scraper - INFO - 📱 Navigating to reels tab: https://www.instagram.com/edhonour/reels/
+2025-09-10 08:06:17,102 - instagram_scraper - INFO - 🔄 Finding first reel to click...
+2025-09-10 08:06:30,442 - instagram_scraper - INFO - 🔄 Discovering additional reels via arrow navigation (total needed: 13, will skip first 3)
+2025-09-10 08:06:38,298 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DHG5m-YuwcY/
+2025-09-10 08:06:38,303 - instagram_scraper - INFO - 🔄 Discovered reel 2/13: https://www.instagram.com/reel/DHG5m-YuwcY/
+2025-09-10 08:06:45,739 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DFnr1svsP--/
+2025-09-10 08:06:45,745 - instagram_scraper - INFO - 🔄 Discovered reel 3/13: https://www.instagram.com/reel/DFnr1svsP--/
+2025-09-10 08:06:53,160 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOZOMewEtpW/
+2025-09-10 08:06:53,166 - instagram_scraper - INFO - 🔄 Discovered reel 4/13: https://www.instagram.com/reel/DOZOMewEtpW/
+2025-09-10 08:07:00,496 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOYrk_wDgd9/
+2025-09-10 08:07:00,503 - instagram_scraper - INFO - 🔄 Discovered reel 5/13: https://www.instagram.com/reel/DOYrk_wDgd9/
+2025-09-10 08:07:08,541 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOW97WVktVU/
+2025-09-10 08:07:08,547 - instagram_scraper - INFO - 🔄 Discovered reel 6/13: https://www.instagram.com/reel/DOW97WVktVU/
+2025-09-10 08:07:16,539 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOUQWb0km7-/
+2025-09-10 08:07:16,545 - instagram_scraper - INFO - 🔄 Discovered reel 7/13: https://www.instagram.com/reel/DOUQWb0km7-/
+2025-09-10 08:07:24,060 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOSG4QqktT5/
+2025-09-10 08:07:24,067 - instagram_scraper - INFO - 🔄 Discovered reel 8/13: https://www.instagram.com/reel/DOSG4QqktT5/
+2025-09-10 08:07:32,028 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DORrvFOkqol/
+2025-09-10 08:07:32,034 - instagram_scraper - INFO - 🔄 Discovered reel 9/13: https://www.instagram.com/reel/DORrvFOkqol/
+2025-09-10 08:07:39,639 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOPIVn_jiRa/
+2025-09-10 08:07:39,644 - instagram_scraper - INFO - 🔄 Discovered reel 10/13: https://www.instagram.com/reel/DOPIVn_jiRa/
+2025-09-10 08:07:47,141 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOOociJjhoz/
+2025-09-10 08:07:47,147 - instagram_scraper - INFO - 🔄 Discovered reel 11/13: https://www.instagram.com/reel/DOOociJjhoz/
+2025-09-10 08:07:54,439 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOOb6f6Dk8w/
+2025-09-10 08:07:54,445 - instagram_scraper - INFO - 🔄 Discovered reel 12/13: https://www.instagram.com/reel/DOOb6f6Dk8w/
+2025-09-10 08:08:02,202 - instagram_scraper - INFO - ✅ Successfully navigated to next reel: https://www.instagram.com/reel/DOMBM9kjnMw/
+2025-09-10 08:08:02,207 - instagram_scraper - INFO - 🔄 Discovered reel 13/13: https://www.instagram.com/reel/DOMBM9kjnMw/
+2025-09-10 08:08:02,207 - instagram_scraper - INFO - ✅ Reel discovery completed: 13 reels found
+2025-09-10 08:08:02,207 - instagram_scraper - INFO - ✅ Discovered 13 reel URLs
+2025-09-10 08:08:02,207 - instagram_scraper - INFO - Applied skip_first=3, processing 10 remaining reels
+2025-09-10 08:08:02,208 - instagram_scraper - INFO - Found 53 already processed reels
+2025-09-10 08:08:02,209 - instagram_scraper - INFO - Video transcriber cleanup completed
+2025-09-10 08:08:02,323 - instagram_scraper - INFO - Driver session closed successfully
 
     ╔══════════════════════════════════════════════════════════════╗
     ║               Instagram Caption Scraper                      ║
@@ -149,44 +130,39 @@ Skipping first: 3 reels
 🔄 Looking for additional reels via arrow navigation...
 ✅ Found reel 2: https://www.instagram.com/reel/DHG5m-YuwcY/
 ✅ Found reel 3: https://www.instagram.com/reel/DFnr1svsP--/
-✅ Found reel 4: https://www.instagram.com/reel/DOUQWb0km7-/
-✅ Found reel 5: https://www.instagram.com/reel/DOSG4QqktT5/
-✅ Found reel 6: https://www.instagram.com/reel/DORrvFOkqol/
-✅ Found reel 7: https://www.instagram.com/reel/DOPIVn_jiRa/
-✅ Found reel 8: https://www.instagram.com/reel/DOOociJjhoz/
-✅ Found reel 9: https://www.instagram.com/reel/DOOb6f6Dk8w/
-✅ Found reel 10: https://www.instagram.com/reel/DOMBM9kjnMw/
-✅ Found reel 11: https://www.instagram.com/reel/DOLs7aNDvks/
-✅ Found reel 12: https://www.instagram.com/reel/DOKHG3sjp8Z/
-✅ Found reel 13: https://www.instagram.com/reel/DOJuI4nkpiq/
+✅ Found reel 4: https://www.instagram.com/reel/DOZOMewEtpW/
+✅ Found reel 5: https://www.instagram.com/reel/DOYrk_wDgd9/
+✅ Found reel 6: https://www.instagram.com/reel/DOW97WVktVU/
+✅ Found reel 7: https://www.instagram.com/reel/DOUQWb0km7-/
+✅ Found reel 8: https://www.instagram.com/reel/DOSG4QqktT5/
+✅ Found reel 9: https://www.instagram.com/reel/DORrvFOkqol/
+✅ Found reel 10: https://www.instagram.com/reel/DOPIVn_jiRa/
+✅ Found reel 11: https://www.instagram.com/reel/DOOociJjhoz/
+✅ Found reel 12: https://www.instagram.com/reel/DOOb6f6Dk8w/
+✅ Found reel 13: https://www.instagram.com/reel/DOMBM9kjnMw/
 ⏭️  Skipping first 3 reels as requested
-🔍 Found 49 already processed reels - skipping duplicates
+🔍 Found 53 already processed reels - skipping duplicates
 📊 Duplicate Detection Results:
    Total discovered: 10
-   Already processed: 9
-   New to process: 1
-🎬 Processing 1 new reels...
-🎬 Processing reel 1/1 (position 1): DOUQWb0km7- - https://www.instagram.com/reel/DOUQWb0km7-/
-📅 Extracted post date: 2025-09-07
-✅ Reel 1/10 processed successfully: Isn't an AI agent company worth $10 billion? Well,...
-⏱️  Brief delay before next reel...
+   Already processed: 10
+   New to process: 0
+✅ All reels already processed - nothing new to extract!
 ✅ Profile scraping completed:
    Discovered: 13 reels
-   Processed: 1 reels
-   Successful: 1 extractions
+   Processed: 0 reels
+   Successful: 0 extractions
    Failed: 0 extractions
-✅ Saved 1 individual reel files in profile directory
+✅ Saved 0 individual reel files in profile directory
 
 Profile Scraping Summary:
   Profile: edhonour
   Reels discovered: 13
-  Reels processed: 1
-  Successful extractions: 1
+  Reels processed: 0
+  Successful extractions: 0
   Failed extractions: 0
-  Success rate: 100.0%
 🎯 Daily Orchestrator initialized
 📂 Base path: /var/www/uploads/instagram_caption_scraper
-🕐 Started at: 2025-09-08 08:00:01
+🕐 Started at: 2025-09-10 08:00:01
 🔍 Starting daily automation with dependency validation...
 🔍 Running pre-flight checks...
   📦 Checking Qdrant vector database...
@@ -210,7 +186,7 @@ Profile Scraping Summary:
    ============================================================
    📊 Scraper process finished with return code: 0
    ✅ edhonour: Scraping completed successfully
-   📊 Found 1 recently created files
+   📊 Found 0 recently created files
 
 ============================================================
 📋 STEP 1: DETECTING NEW FILES
@@ -218,80 +194,18 @@ Profile Scraping Summary:
 🔍 Daily File Detection Starting...
 📂 Scanning: /var/www/uploads/instagram_caption_scraper/output
 📂 Enhanced: /var/www/uploads/instagram_caption_scraper/rag_system/enhanced_processed
-📊 Found 1 potentially new files
-✅ 1 valid files ready for processing
+📊 Found 0 potentially new files
+✅ 0 valid files ready for processing
 
 ============================================================
 📋 DAILY FILE DETECTION REPORT
 ============================================================
-📊 Total raw files: 50
-📊 Total enhanced files: 518
-🆕 New files found: 1
-✅ Files to process: 1
-💰 Estimated cost: $0.0264
-⏱️  Estimated time: 22s (0.4min)
+📊 Total raw files: 53
+📊 Total enhanced files: 522
+🆕 New files found: 0
+✅ Files to process: 0
 
-📄 Files ready for enhancement:
-  • DOUQWb0km7-
+✨ No new files to process!
 ============================================================
-✅ Found 1 files ready for enhancement
-
-============================================================
-🤖 STEP 2: ENHANCING FILES WITH CLAUDE
-============================================================
-🔄 Enhancing 1 files...
-🚀 Starting batch enhancement of 1 files...
-🔄 Enhancing: DOUQWb0km7-
-✅ Enhanced file saved: /var/www/uploads/instagram_caption_scraper/rag_system/enhanced_processed/enhanced_DOUQWb0km7-.json
-💰 Cost: $0.0138 | ⏱️ Time: 15.1s
-📊 Progress: 1/1 files processed
-
-============================================================
-📋 BATCH ENHANCEMENT SUMMARY
-============================================================
-✅ Successful: 1
-❌ Failed: 0
-💰 Total cost: $0.0138
-⏱️ Total processing time: 15.1s
-🕐 Wall clock time: 15.2s
-============================================================
-✅ All 1 files enhanced successfully
-
-============================================================
-🗂️ STEP 3: UPDATING VECTOR DATABASE
-============================================================
-🔄 Processing 1 newly enhanced files...
-🔗 Connecting to Qdrant Cloud: http://localhost:6333
-🤖 Loading embedding model: intfloat/e5-large-v2
-💡 Using CPU for embeddings to avoid CUDA memory issues
-✅ Qdrant Vector Manager initialized
-📊 Embedding dimension: 1024
-🔧 Setting up Qdrant collections...
-🗑️ Deleted existing content collection
-✅ Created content collection: instagram_content_vectors
-🗑️ Deleted existing qa collection
-✅ Created qa collection: instagram_qa_vectors
-🗑️ Deleted existing tech collection
-✅ Created tech collection: instagram_tech_vectors
-🗑️ Deleted existing context collection
-✅ Created context collection: instagram_context_vectors
-🎉 All collections created successfully!
-📋 Processing 1 specific files
-🚀 Starting vectorization of 1 enhanced files...
-📄 Processing 1/1: enhanced_DOUQWb0km7-.json
-📄 Indexing document: edhonour_DOUQWb0km7-
-✅ Indexed edhonour_DOUQWb0km7- across all 4 vectors
-✅ Added: edhonour_DOUQWb0km7-
-
-============================================================
-📊 VECTORIZATION SUMMARY
-============================================================
-📁 Total processed: 1
-✅ Successfully added: 1
-⏭️ Skipped (duplicates): 0
-❌ Failed: 0
-⏱️ Processing time: 3.1s
-
-🎯 1 new documents added to vector database!
-============================================================
-[2025-09-08 08:09:19] COMPLETE - Reels: 1, Enhanced: 1, Vectorized: 1, Duration: 557.9s
+ℹ️ No new files found - pipeline complete
+[2025-09-10 08:08:03] COMPLETE - Reels: 0, Enhanced: 0, Vectorized: 0, Duration: 481.4s
