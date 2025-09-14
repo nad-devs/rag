@@ -15,13 +15,15 @@ import os
 class LocalEntityExtractor:
     """Extract entities using local models with Claude fallback"""
     
-    def __init__(self, ollama_base_url: str = "http://localhost:11434"):
+    def __init__(self, ollama_base_url: str = "http://localhost:11434", preload_model: bool = True):
         """Initialize local entity extractor"""
         self.ollama_base_url = ollama_base_url
         self.available = self._check_ollama_connection()
-        
+
         if self.available:
             print("✅ Local entity extractor ready")
+            if preload_model:
+                self.warmup_model()
         else:
             print("⚠️ Local models unavailable - Claude-only mode")
     
@@ -32,6 +34,39 @@ class LocalEntityExtractor:
             return response.status_code == 200
         except:
             return False
+
+    def warmup_model(self) -> None:
+        """Preload Mistral model into GPU memory with a dummy request"""
+        try:
+            print("🔥 Preloading Mistral 7B into GPU memory...")
+            start_time = time.time()
+
+            # Send a simple warmup request
+            warmup_prompt = "Extract entity from: test query. Reply with entity:"
+            payload = {
+                "model": "mistral:7b-instruct",
+                "prompt": warmup_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.0,
+                    "num_predict": 10
+                }
+            }
+
+            response = requests.post(
+                f"{self.ollama_base_url}/api/generate",
+                json=payload,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                load_time = time.time() - start_time
+                print(f"✅ Mistral 7B loaded into GPU in {load_time:.2f}s - Ready for fast inference!")
+            else:
+                print(f"⚠️ Model preload failed: {response.status_code}")
+
+        except Exception as e:
+            print(f"⚠️ Could not preload model: {e}")
     
     def extract_entity(self, query: str) -> Dict[str, any]:
         """

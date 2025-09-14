@@ -31,7 +31,8 @@ from pathlib import Path
 # Import extracted components
 from rag_system.core.document_searcher import DocumentSearcher
 from rag_system.core.metadata_scorer import MetadataScorer
-from rag_system.core.entity_detector import EntityDetector
+# REMOVED: EntityDetector wrapper - using LocalEntityExtractor directly
+# from rag_system.core.entity_detector import EntityDetector
 from rag_system.core.claude_ranker import ClaudeRanker
 
 # Ensure Qdrant URL is set for Docker instance if not already set
@@ -119,31 +120,39 @@ class ClaudeRAGEngine:
         self.use_qwen = False
         try:
             import ollama
-            models = ollama.list()
-            if any('qwen2.5:32b' in model['name'] for model in models['models']):
-                self.use_qwen = True
-                print("✅ Qwen 2.5 32B model detected - will use for synthesis")
-        except:
-            pass
+            model_list = ollama.list()
+            # Check for the exact model name we have installed
+            # ollama.list() returns an object with 'models' attribute
+            available_models = model_list.models if hasattr(model_list, 'models') else []
+            for model in available_models:
+                model_name = model.model if hasattr(model, 'model') else str(model)
+                if 'qwen2.5:32b-instruct-q4_K_M' in str(model_name):
+                    self.use_qwen = True
+                    print("✅ Qwen 2.5 32B model detected - will use for synthesis")
+                    break
+        except Exception as e:
+            print(f"⚠️ Could not check for Qwen model: {e}")
         
-        # Still check for Anthropic API for fallback
-        anthropic_key = os.getenv('ANTHROPIC_API_KEY')
-        
+        # Force Qwen usage for synthesis but keep Claude for ranking
         if self.use_qwen:
-            # Prefer Qwen over Claude for cost savings
+            # Use Qwen for synthesis but keep Claude for ranking
             print("🚀 Using local Qwen model for synthesis (GPU accelerated)")
-            self.client = None
-            self.use_anthropic = False
-        elif anthropic_key:
-            print(f"📡 Using Anthropic Claude API (fallback): sk-ant-...{anthropic_key[-10:]}")
-            self.client = anthropic.Anthropic(api_key=anthropic_key)
-            self.use_anthropic = True
-        else:
-            if not use_local_synthesis:
-                print("❌ No Qwen model or ANTHROPIC_API_KEY found!")
-                raise ValueError("Either Qwen model or ANTHROPIC_API_KEY is required")
+            anthropic_key = os.getenv('ANTHROPIC_API_KEY')
+            if anthropic_key:
+                print(f"📡 Claude API available for reranking: sk-ant-...{anthropic_key[-10:]}")
+                self.client = anthropic.Anthropic(api_key=anthropic_key)
             else:
-                print("⚠️ No Qwen or Anthropic API - using local synthesis only")
+                self.client = None
+            self.use_anthropic = False
+        else:
+            # Still try to use Claude for entity extraction and ranking
+            anthropic_key = os.getenv('ANTHROPIC_API_KEY')
+            if anthropic_key:
+                print(f"📡 Anthropic API available for entity/ranking: sk-ant-...{anthropic_key[-10:]}")
+                self.client = anthropic.Anthropic(api_key=anthropic_key)
+                self.use_anthropic = True
+            else:
+                print("⚠️ No Qwen or Anthropic API - limited functionality")
                 self.client = None
                 self.use_anthropic = False
         
@@ -229,13 +238,9 @@ class ClaudeRAGEngine:
             )
             print("✅ MetadataScorer initialized")
             
-            # Initialize entity detector
-            self.entity_detector = EntityDetector(
-                client=self.client,
-                use_mistral=not self.use_anthropic,  # Use Mistral when not using Anthropic
-                local_entity_extractor=self.local_entity_extractor
-            )
-            print("✅ EntityDetector initialized")
+            # SIMPLIFIED: Direct use of LocalEntityExtractor (removed EntityDetector wrapper)
+            # Entity extraction now uses only Mistral 7B via Ollama
+            print("✅ Entity extraction using Mistral 7B via Ollama")
             
             # Initialize claude ranker
             self.claude_ranker = ClaudeRanker(
@@ -251,7 +256,7 @@ class ClaudeRAGEngine:
             print("⚠️ Falling back to monolithic methods")
             self.document_searcher = None
             self.metadata_scorer = None
-            self.entity_detector = None
+            # entity_detector removed - using local_entity_extractor directly
             self.claude_ranker = None
         # NOTE: Vector indexing now handled by separate rebuild_vector_index.py script
     
@@ -260,40 +265,46 @@ class ClaudeRAGEngine:
 
     
     def _extract_vector_specific_content(self, mention: Dict[str, Any]) -> str:
-        """Extract ALL content fields regardless of which vector matched"""
-        # We use 3 vectors for better MATCHING, but once matched, send ALL fields
+        """Extract only Content + Action vector fields to avoid redundancy"""
         content_parts = []
         
-        # Always include core semantic content
+        # CONTENT VECTOR: main_lesson + key_takeaways + series info
         if mention.get('main_lesson'):
             content_parts.append(mention.get('main_lesson', ''))
         
         if mention.get('key_takeaways'):
+            # Take all key takeaways (usually 3-5)
             content_parts.append(' '.join(mention.get('key_takeaways', [])))
         
-        # Always include actionable content
+        # Add series info if it's part of a series
+        if mention.get('is_part_of_series'):
+            series_info = f"Part {mention.get('part_number', '')} of series: {mention.get('series_title', '')}"
+            content_parts.append(series_info)
+        
+        # ACTION VECTOR: actionable_insights + practical_applications
         if mention.get('actionable_insights'):
             content_parts.append(' '.join(mention.get('actionable_insights', [])))
             
         if mention.get('practical_applications'):
             content_parts.append(' '.join(mention.get('practical_applications', [])))
         
-        # Always include technical content
-        tech_parts = []
-        for tech in mention.get('technologies_mentioned', []):
-            if isinstance(tech, dict):
-                tech_parts.append(f"{tech.get('name', '')}: {tech.get('context', '')}")
-            else:
-                tech_parts.append(str(tech))
+        # Include technical content - CRITICAL for acronym definitions like MCP
+        tech_mentioned = mention.get('technologies_mentioned', [])
+        if tech_mentioned:
+            for tech in tech_mentioned:
+                if isinstance(tech, dict):
+                    tech_desc = f"{tech.get('name', '')}: {tech.get('context', '')}"
+                    content_parts.append(tech_desc)
+                else:
+                    content_parts.append(str(tech))
         
-        for tool in mention.get('tools_and_platforms', []):
-            if isinstance(tool, dict):
-                tech_parts.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
-            else:
-                tech_parts.append(str(tool))
-        
-        if tech_parts:
-            content_parts.extend(tech_parts)
+        # Include tools and platforms if available
+        tools = mention.get('tools_and_platforms', [])
+        if tools:
+            for tool in tools:
+                if isinstance(tool, dict):
+                    tool_desc = f"{tool.get('name', '')}: {tool.get('use_case', '')}"
+                    content_parts.append(tool_desc)
         
         # Include examples if available
         examples = mention.get('specific_examples', [])
@@ -406,14 +417,18 @@ class ClaudeRAGEngine:
         step_start = time.time()
         conversation_context = self.conversation_tracker.get_context_for_response_generation()
         
-        # Extract key entity/topic from the user's question using GPT-4
-        if self.entity_detector:
-            if is_followup:
-                entity = self.entity_detector.extract_entity_from_query(user_query, conversation_context)
-            else:
-                entity = self.entity_detector.extract_entity_from_query(user_query)
+        # Extract key entity/topic from the user's question using LocalEntityExtractor
+        if self.local_entity_extractor and self.local_entity_extractor.available:
+            try:
+                result = self.local_entity_extractor.extract_entity(user_query)
+                entity = result["primary_entity"]
+                print(f"🔍 Local entity extraction: {result['local_time_ms']/1000:.2f}s")
+            except Exception as e:
+                print(f"⚠️ Entity extraction failed: {e}")
+                entity = "general"
         else:
-            entity = self._extract_entity_from_query(user_query)  # Fallback to monolithic
+            print("⚠️ Local entity extractor not available, using fallback")
+            entity = "general"
         
         print(f"🎯 Entity Detected: '{entity}'")
         
@@ -700,12 +715,9 @@ class ClaudeRAGEngine:
         # Based on comprehensive analysis of 446 documents and 8 diverse query types
         # Achieves 89% of theoretical maximum performance (62.5% vs 70% ceiling)
         query_complexity = self._assess_query_complexity(query)
-        # Use component or fallback
-        if self.entity_detector:
-            entity_category = self.entity_detector.categorize_entity_type(entity, query)
-        else:
-            # Simple fallback categorization
-            entity_category = "general"
+        # Simple fallback categorization (EntityDetector class is unused)
+        # Could be enhanced later by implementing categorization in LocalEntityExtractor
+        entity_category = "general"
         
         # Optimized category-based limits for speed and accuracy balance
         # NOTE: Reduced limits for faster performance while maintaining accuracy
@@ -720,19 +732,19 @@ class ClaudeRAGEngine:
         }
         
         # Base document count with category awareness  
-        base_docs = category_limits.get(entity_category, 8)  # Default 8 for speed
+        base_docs = category_limits.get(entity_category, 10)  # Balanced for quality and speed
         
         # Quality bonus: increase if high-quality results available
         # This is estimated based on the fact we have search results
         quality_bonus = 0
         if query_complexity == "comprehensive":
-            quality_bonus = 5  # Comprehensive queries need much more context
+            quality_bonus = 5  # Good balance for comprehensive answers
         elif len(mentions) > 20:  # Many high-quality results available
-            quality_bonus = 3
+            quality_bonus = 3  # Moderate bonus
         elif len(mentions) > 10:  # Some good results available
-            quality_bonus = 2
+            quality_bonus = 2  # Small bonus
             
-        max_docs = min(base_docs + quality_bonus, 20)  # Cap at 20 to allow contextual selection
+        max_docs = min(base_docs + quality_bonus, 15)  # Optimized cap for faster responses
             
         # STAGE 1: Series Detection and Boosting (ALWAYS runs)
         # NEW: Detect and boost series BEFORE ranking decisions
@@ -787,7 +799,31 @@ class ClaudeRAGEngine:
             doc_vector_contents = []
             vector_types_found = []
             
+            # CRITICAL FIX: Load full document data from enhanced_content_index
+            full_document = self.enhanced_content_index.get(doc_id, {})
+            
+            # DEBUG: Show what we're extracting
+            if i < 3:  # Show first 3 documents
+                print(f"\n📄 DEBUG Doc {i+1} ({doc_id}):")
+                print(f"   Mentions count: {len(mentions_for_doc)}")
+                print(f"   Full document found: {bool(full_document)}")
+                if full_document:
+                    learning_meta = full_document.get('learning_metadata', {})
+                    print(f"   Has main_lesson: {bool(learning_meta.get('main_lesson'))}")
+                    print(f"   Has key_takeaways: {bool(learning_meta.get('key_takeaways'))}")
+                    print(f"   Has technologies_mentioned: {bool(learning_meta.get('technologies_mentioned'))}")
+                    if learning_meta.get('technologies_mentioned'):
+                        print(f"   Tech mentioned: {learning_meta.get('technologies_mentioned')[:2]}")  # Show first 2
+            
             for mention in mentions_for_doc:
+                # ENRICH mention with full document data
+                if full_document:
+                    # Add learning metadata to the mention
+                    if full_document.get('learning_metadata'):
+                        mention.update(full_document['learning_metadata'])
+                    # Also preserve source metadata
+                    if full_document.get('source_metadata'):
+                        mention['source_metadata'] = full_document['source_metadata']
                 vector_specific_content = self._extract_vector_specific_content(mention)
                 if vector_specific_content.strip():  # Only add non-empty content
                     doc_vector_contents.append(vector_specific_content)
@@ -851,6 +887,9 @@ class ClaudeRAGEngine:
                 vector_types_used.add(mention.get('vector_type', 'unknown'))
         
         print(f"📊 SEARCH RESULTS: {total_docs} documents | {len(combined_content):,} chars | Types: {len(vector_types_used)}")
+        if len(combined_content) < 1000:
+            print(f"   ⚠️ WARNING: Only {len(combined_content)} chars for {total_docs} docs - content may be missing!")
+            print(f"   First 200 chars of combined content: {combined_content[:200]}")
         
         # Citation flow debugging - Document selection
         print(f"🔍 CITATION FLOW DEBUG:")
@@ -888,11 +927,11 @@ class ClaudeRAGEngine:
                 if isinstance(tool, dict):
                     all_tools.append(f"{tool.get('name', '')}: {tool.get('use_case', '')}")
         
-        # Create context-aware intelligent prompt
+        # Create context-aware intelligent prompt (removed tech/tools to avoid duplication)
         prompt = self._build_context_aware_prompt(
             query, entity, combined_content, conversation_context, is_followup,
             all_key_takeaways, all_actionable_insights, all_specific_examples,
-            all_practical_applications, all_technologies, all_tools
+            all_practical_applications
         )
         
         print(f"🤖 CONTEXT-AWARE PROMPT DEBUG:")
@@ -916,6 +955,17 @@ class ClaudeRAGEngine:
             if self.use_local_synthesis and self.local_synthesizer:
                 # Use local Qwen for final synthesis
                 print("🤖 Using LOCAL QWEN for document synthesis")
+                # DEBUG: Print the actual prompt being sent to Qwen
+                print("\n" + "="*80)
+                print("🔍 ACTUAL PROMPT SENT TO QWEN:")
+                print("="*80)
+                print("PROMPT LENGTH:", len(prompt))
+                print("\nFIRST 2000 CHARS OF PROMPT:")
+                print(prompt[:2000])
+                print("\nLAST 1000 CHARS OF PROMPT:")
+                print(prompt[-1000:])
+                print("="*80 + "\n")
+                
                 synthesis_result = self.local_synthesizer.extract_with_context_aware_prompt(
                     prompt=prompt,
                     temperature=0.1,
@@ -943,43 +993,101 @@ class ClaudeRAGEngine:
                     extraction_reasoning=f"Local Qwen synthesis: {synthesis_result['reasoning']}"
                 )
                 
-            else:
-                # Use local Qwen model via Ollama (GPU accelerated)
+            elif self.use_qwen:
+                # Use Qwen model via Ollama directly
+                print("🤖 Using QWEN 2.5 32B for synthesis")
+                
+                # Build documents_text first (needed for Qwen prompt)
+                # Skip structured additions - already included in combined_content
+                # This avoids duplication since we're now using Content + Action vectors only
+                documents_text = combined_content
+                
+                # Create Qwen-specific prompt
+                qwen_prompt = f"""You are analyzing Ed's Instagram content to answer user questions.
+
+RESPONSE STRUCTURE REQUIREMENTS:
+- Provide a COMPREHENSIVE answer (minimum 3-4 paragraphs)
+- Use markdown headers (##) to organize major sections
+- Include at least 2-3 different perspectives or aspects
+- Provide specific details, examples, and context from Ed's posts
+
+CONTENT ORGANIZATION:
+Use clean headers without asterisks:
+# Main Title (if needed)
+## Section Headers 
+### Subsection Headers (if needed)
+
+For emphasis in text:
+- Use plain text, no bold/italic markdown
+- Keep formatting simple and linear
+- Avoid ** or * around words
+
+Content structure:
+1. Overview/Definition - Clear, direct answer first
+2. Key Features/Components - Break down into detailed points with bullets
+3. Implementation/Usage - Practical advice and specific steps
+4. Additional Insights - Evolution over time, related concepts
+
+IMPORTANT: 
+- Keep text flowing naturally without excessive formatting
+- Use simple bullet points (-)
+- Avoid markdown bold (**text**) or italic (*text*)
+
+TEMPORAL AWARENESS:
+- Notice the dates in [DOCUMENT edhonour_XXX - Posted: DATE] headers
+- If Ed's opinion changed over time, mention it naturally:
+  Example: "In March 2024, Ed recommended X [edhonour_123]. By October 2024, he shifted to Y [edhonour_456]."
+
+CITATION RULES:
+- Group multiple related points from the same reel together in paragraphs
+- Add [edhonour_XXX] at the END of paragraph or after 2-3 related sentences
+- CRITICAL: Only cite a document if it DIRECTLY supports the statements
+- Verify each citation matches the actual content of that reel
+- Example: Ed recommends using AI tools for productivity. He emphasizes that Claude Code can handle multiple tasks simultaneously and run agents in the background for better workflow management [edhonour_ABC123].
+- For bullet points: Group related points, then cite at the end
+- NEVER put citations on headers or titles
+- NEVER cite a document about topic X when discussing topic Y
+- Combine multiple insights from the same reel into flowing paragraphs
+
+RELEVANT CONTENT:
+{documents_text}
+
+USER'S QUESTION: {query}
+
+Generate a DETAILED, COMPREHENSIVE response with proper headers and structure. Format as JSON:
+{{
+    "answer": "Your detailed response with markdown headers (##) and proper citations [edhonour_XXX]",
+    "confidence": 0.85
+}}
+
+Important: Return ONLY the JSON object, no additional text. Make the response thorough and informative."""
+                
+                print(f"📊 QWEN INPUT DEBUG:")
+                print(f"   Query: {query}")
+                print(f"   Documents count: {len(doc_mentions)}")
+                print(f"   Total content length: {len(documents_text)} chars")
+                
+                # Execute Qwen synthesis
                 import ollama
                 
-                print("🚀 Using local Qwen 2.5 32B model (GPU accelerated)")
-                # Note: qwen_prompt will be created after documents_text is defined
-                
                 try:
-                    # Call Ollama with Qwen model (GPU accelerated by default)
                     response = ollama.chat(
                         model='qwen2.5:32b-instruct-q4_K_M',
                         messages=[{'role': 'user', 'content': qwen_prompt}],
                         options={
                             'temperature': 0.1,
-                            'num_predict': 3000,  # Allow comprehensive responses
-                            'num_gpu': -1,  # Use all available GPU layers
-                            'num_thread': 8,  # Multiple CPU threads for preprocessing
-                            'top_k': 40,
-                            'top_p': 0.9,
-                            'repeat_penalty': 1.1  # Reduce repetition
+                            'num_predict': 2000,  # Reduced from 3000 - shorter responses are faster
+                            'num_gpu': 99,  # Use maximum GPU layers (model will use what it needs)
+                            'num_thread': 16,  # Increased CPU threads for preprocessing
+                            'top_k': 20,  # Reduced from 40 - less sampling = faster
+                            'top_p': 0.8,  # Reduced from 0.9 - more focused = faster
+                            'repeat_penalty': 1.05,  # Reduced penalty for smoother generation
+                            'num_ctx': 4096,  # Limit context window for speed
+                            'num_batch': 512  # Larger batch size for GPU efficiency
                         }
                     )
                     raw_content = response['message']['content']
                     print(f"✅ Qwen responded successfully ({len(raw_content)} chars)")
-                    
-                    # DEBUG: Show Qwen's raw response
-                    print(f"\n🔍 QWEN OUTPUT DEBUG:")
-                    print(f"   Raw response first 300 chars: {raw_content[:300]}...")
-                    
-                    # Clean response if wrapped in markdown
-                    if '```json' in raw_content:
-                        print("   📝 Cleaning markdown wrapper from JSON")
-                        start = raw_content.find('{')
-                        end = raw_content.rfind('}') + 1
-                        if start >= 0 and end > start:
-                            raw_content = raw_content[start:end]
-                            print(f"   ✅ Cleaned JSON: {raw_content[:200]}...")
                     
                 except Exception as e:
                     print(f"❌ Qwen model error: {e}")
@@ -988,12 +1096,110 @@ class ClaudeRAGEngine:
                         "answer": f"Based on Ed's content: {documents_text[:500]}...",
                         "confidence": 0.7
                     })
+                
+            else:
+                # Always try Qwen even if not detected during init
+                print("🤖 Attempting QWEN synthesis (fallback)")
+                
+                # Build documents_text (same as Qwen block above)
+                # Skip structured additions - already included in combined_content
+                # This avoids duplication since we're now using Content + Action vectors only
+                documents_text = combined_content
+                
+                # Create Qwen prompt
+                qwen_prompt = f"""You are analyzing Ed's Instagram content to answer user questions.
+
+RESPONSE STRUCTURE REQUIREMENTS:
+- Provide a COMPREHENSIVE answer (minimum 3-4 paragraphs)
+- Use markdown headers (##) to organize major sections
+- Include at least 2-3 different perspectives or aspects
+- Provide specific details, examples, and context from Ed's posts
+
+CONTENT ORGANIZATION:
+Use clean headers without asterisks:
+# Main Title (if needed)
+## Section Headers 
+### Subsection Headers (if needed)
+
+For emphasis in text:
+- Use plain text, no bold/italic markdown
+- Keep formatting simple and linear
+- Avoid ** or * around words
+
+Content structure:
+1. Overview/Definition - Clear, direct answer first
+2. Key Features/Components - Break down into detailed points with bullets
+3. Implementation/Usage - Practical advice and specific steps
+4. Additional Insights - Evolution over time, related concepts
+
+IMPORTANT: 
+- Keep text flowing naturally without excessive formatting
+- Use simple bullet points (-)
+- Avoid markdown bold (**text**) or italic (*text*)
+
+TEMPORAL AWARENESS:
+- Notice the dates in [DOCUMENT edhonour_XXX - Posted: DATE] headers
+- If Ed's opinion changed over time, mention it naturally:
+  Example: "In March 2024, Ed recommended X [edhonour_123]. By October 2024, he shifted to Y [edhonour_456]."
+
+CITATION RULES:
+- Group multiple related points from the same reel together in paragraphs
+- Add [edhonour_XXX] at the END of paragraph or after 2-3 related sentences
+- CRITICAL: Only cite a document if it DIRECTLY supports the statements
+- Verify each citation matches the actual content of that reel
+- Example: Ed recommends using AI tools for productivity. He emphasizes that Claude Code can handle multiple tasks simultaneously and run agents in the background for better workflow management [edhonour_ABC123].
+- For bullet points: Group related points, then cite at the end
+- NEVER put citations on headers or titles
+- NEVER cite a document about topic X when discussing topic Y
+- Combine multiple insights from the same reel into flowing paragraphs
+
+RELEVANT CONTENT:
+{documents_text}
+
+USER'S QUESTION: {query}
+
+Generate a DETAILED, COMPREHENSIVE response with proper headers and structure. Format as JSON:
+{{
+    "answer": "Your detailed response with markdown headers (##) and proper citations [edhonour_XXX]",
+    "confidence": 0.85
+}}
+
+Important: Return ONLY the JSON object, no additional text. Make the response thorough and informative."""
+                
+                # Execute Qwen synthesis
+                import ollama
+                
+                try:
+                    response = ollama.chat(
+                        model='qwen2.5:32b-instruct-q4_K_M',
+                        messages=[{'role': 'user', 'content': qwen_prompt}],
+                        options={
+                            'temperature': 0.1,
+                            'num_predict': 2000,  # Reduced from 3000 - shorter responses are faster
+                            'num_gpu': 99,  # Use maximum GPU layers (model will use what it needs)
+                            'num_thread': 16,  # Increased CPU threads for preprocessing
+                            'top_k': 20,  # Reduced from 40 - less sampling = faster
+                            'top_p': 0.8,  # Reduced from 0.9 - more focused = faster
+                            'repeat_penalty': 1.05,  # Reduced penalty for smoother generation
+                            'num_ctx': 4096,  # Limit context window for speed
+                            'num_batch': 512  # Larger batch size for GPU efficiency
+                        }
+                    )
+                    raw_content = response['message']['content']
+                    print(f"✅ Qwen responded successfully ({len(raw_content)} chars)")
+                    
+                except Exception as e:
+                    print(f"❌ Qwen model error: {e}")
+                    raw_content = json.dumps({
+                        "answer": f"Based on Ed's content: {documents_text[:500]}...",
+                        "confidence": 0.7
+                    })
             
             print(f"🤖 LLM Response length: {len(raw_content)} characters")
             
-            # Citation flow debugging - After Claude response
+            # Citation flow debugging - After synthesis response
             edhonour_citations_in_response = re.findall(r'\[edhonour_[^\]]+\]', raw_content)
-            print(f"🔍 CLAUDE CITATION OUTPUT:")
+            print(f"🔍 SYNTHESIS CITATION OUTPUT:")
             print(f"   Response contains {len(edhonour_citations_in_response)} [edhonour_] citations")
             print(f"   Citations found: {edhonour_citations_in_response[:10]}")  # Show first 10
             if len(edhonour_citations_in_response) > 10:
@@ -1098,9 +1304,7 @@ class ClaudeRAGEngine:
         all_key_takeaways: List,
         all_actionable_insights: List,
         all_specific_examples: List,
-        all_practical_applications: List,
-        all_technologies: List,
-        all_tools: List
+        all_practical_applications: List
     ) -> str:
         """Build context-aware prompt that incorporates conversation history"""
         
@@ -1119,68 +1323,9 @@ CONVERSATION CONTEXT:
 """
 
         # Create comprehensive documents text including structured knowledge
-        structured_additions = []
-        if all_key_takeaways:
-            structured_additions.append(f"Key Takeaways: {'; '.join(all_key_takeaways[:5])}")
-        if all_actionable_insights:
-            structured_additions.append(f"Actionable Insights: {'; '.join(all_actionable_insights[:5])}")
-        if all_specific_examples:
-            structured_additions.append(f"Examples: {'; '.join(all_specific_examples[:3])}")
-        if all_practical_applications:
-            structured_additions.append(f"Applications: {'; '.join(all_practical_applications[:3])}")
-        if all_technologies:
-            structured_additions.append(f"Technologies: {'; '.join(all_technologies[:5])}")
-        if all_tools:
-            structured_additions.append(f"Tools: {'; '.join(all_tools[:5])}")
-        
+        # Skip structured additions - already included in combined_content via Content + Action vectors
         documents_text = combined_content
-        if structured_additions:
-            documents_text += f"\n\nSTRUCTURED INSIGHTS:\n{chr(10).join(structured_additions)}"
         
-        # DEBUG: Show what documents we're sending to Qwen (after documents_text is defined)
-        if self.use_qwen:
-            print(f"\n📊 QWEN INPUT DEBUG:")
-            print(f"   Query: {query}")
-            print(f"   Documents count: {len(doc_mentions)}")
-            print(f"   Total content length: {len(documents_text)} chars")
-            print(f"   First 500 chars of documents: {documents_text[:500]}...")
-            
-            # Create Qwen prompt now that documents_text is defined
-            qwen_prompt = f"""You are analyzing Ed's Instagram content to answer user questions.
-
-CONTENT STRUCTURE GUIDELINES:
-- Open with a clear, direct answer to the user's question
-- Organize information in logical sections
-- Use bullet points for multiple related concepts
-- Include specific examples from Ed's content
-- Explain WHY Ed recommends something, not just WHAT
-
-TEMPORAL AWARENESS:
-- Notice the dates in [DOCUMENT edhonour_XXX - Posted: DATE] headers
-- If Ed's opinion changed over time, mention it naturally:
-  Example: "In March 2024, Ed recommended X [edhonour_123]. By October 2024, he shifted to Y [edhonour_456]."
-- Don't overanalyze evolution, just state the facts with dates
-
-CITATION RULES:
-- Add [edhonour_XXX] at the END of sentences, before the period
-- Example: Ed recommends using AI tools for productivity [edhonour_ABC123].
-- For bullet points: Put citation at the end of each point [edhonour_XYZ].
-- NEVER put citations on headers or titles
-- One citation per sentence is sufficient
-
-RELEVANT CONTENT:
-{documents_text}
-
-USER'S QUESTION: {query}
-
-Generate a comprehensive response following the guidelines above, then format as JSON:
-{{
-    "answer": "Your detailed response with proper citations [edhonour_XXX]",
-    "confidence": 0.85
-}}
-
-Important: Return ONLY the JSON object, no additional text."""
-
         # Enhanced prompt for Claude synthesis
         full_prompt = f"""Based on the provided content about Ed's insights, generate a comprehensive response following these guidelines:
 
